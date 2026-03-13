@@ -34,6 +34,7 @@ pub struct TftpApp {
     log_buffer: LogBuffer,
     tray_state: Option<TrayState>,
     last_tray_visual: TrayVisualState,
+    show_about: bool,
     /// Tokio runtime handle for spawning server restart tasks
     rt_handle: tokio::runtime::Handle,
 
@@ -63,6 +64,7 @@ impl TftpApp {
             log_buffer,
             tray_state,
             last_tray_visual: TrayVisualState::Running,
+            show_about: false,
             rt_handle: tokio::runtime::Handle::current(),
             dashboard: DashboardState::new(),
             files: FilesState::new(root),
@@ -137,9 +139,6 @@ impl eframe::App for TftpApp {
         // Top panel
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("Fry TFTP Server");
-                ui.separator();
-
                 let (status_text, status_color) = match server_state {
                     ServerState::Running => ("Running", self.theme.status_running()),
                     ServerState::Starting => ("Starting...", self.theme.accent()),
@@ -147,16 +146,21 @@ impl eframe::App for TftpApp {
                     ServerState::Stopped => ("Stopped", self.theme.status_stopped()),
                     ServerState::Error => ("Error", self.theme.status_error()),
                 };
+                ui.label("Status:");
                 ui.colored_label(status_color, status_text);
 
                 ui.separator();
                 let config = self.state.config();
                 ui.label(format!(
-                    "{}:{}",
+                    "Listening: {}:{}",
                     config.server.bind_address, config.server.port
                 ));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("About").clicked() {
+                        self.show_about = !self.show_about;
+                    }
+
                     let theme_label = match self.theme {
                         Theme::Dark => "Light Mode",
                         Theme::Light => "Dark Mode",
@@ -179,7 +183,6 @@ impl eframe::App for TftpApp {
                                 let state = self.state.clone();
                                 self.dashboard = DashboardState::new();
                                 self.rt_handle.spawn(async move {
-                                    // Reload config from disk, preserving CLI overrides
                                     let new_config = state
                                         .reload_config()
                                         .map(|()| (*state.config()).clone())
@@ -192,11 +195,66 @@ impl eframe::App for TftpApp {
                                 });
                             }
                         }
-                        _ => {} // Starting/Stopping — no button
+                        _ => {}
                     }
                 });
             });
         });
+
+        // About panel (right-side overlay)
+        if self.show_about {
+            egui::SidePanel::right("about_panel")
+                .default_width(280.0)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.heading("About");
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Close").clicked() {
+                                self.show_about = false;
+                            }
+                        });
+                    });
+                    ui.separator();
+                    ui.add_space(8.0);
+
+                    ui.label(egui::RichText::new("Fry TFTP Server").strong().size(16.0));
+                    ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
+                    ui.add_space(12.0);
+
+                    egui::Grid::new("about_grid")
+                        .spacing([8.0, 4.0])
+                        .show(ui, |ui| {
+                            ui.strong("Author:");
+                            ui.label("Viacheslav Gordeev");
+                            ui.end_row();
+
+                            ui.strong("Email:");
+                            ui.label("qulisun@gmail.com");
+                            ui.end_row();
+
+                            ui.strong("Source:");
+                            ui.hyperlink_to(
+                                "github.com/qulisun/fry-tftp-server",
+                                "https://github.com/qulisun/fry-tftp-server",
+                            );
+                            ui.end_row();
+
+                            ui.strong("License:");
+                            ui.label("MIT");
+                            ui.end_row();
+                        });
+
+                    ui.add_space(12.0);
+                    ui.separator();
+                    ui.add_space(8.0);
+                    ui.label(
+                        egui::RichText::new("Built with Rust, egui, tokio, ratatui")
+                            .small()
+                            .weak(),
+                    );
+                });
+        }
 
         // Left sidebar
         egui::SidePanel::left("sidebar")

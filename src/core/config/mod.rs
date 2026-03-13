@@ -63,7 +63,7 @@ impl Default for GuiConfig {
             theme: "dark".to_string(),
             refresh_rate_ms: 250,
             graph_history_seconds: 300,
-            show_bandwidth_chart: true,
+            show_bandwidth_chart: false,
         }
     }
 }

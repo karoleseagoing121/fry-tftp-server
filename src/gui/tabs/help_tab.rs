@@ -16,7 +16,7 @@ impl HelpState {
     }
 }
 
-pub fn draw(ui: &mut Ui, help: &mut HelpState) {
+pub fn draw(ui: &mut Ui, _help: &mut HelpState) {
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.heading("Fry TFTP Server");
         ui.add_space(4.0);
@@ -102,78 +102,6 @@ pub fn draw(ui: &mut Ui, help: &mut HelpState) {
                 ui.label("  -");
                 ui.label(*feat);
             });
-        }
-
-        ui.add_space(12.0);
-        ui.separator();
-        ui.add_space(8.0);
-
-        // ── Keyboard Shortcuts ──
-        ui.heading("Keyboard Shortcuts (TUI)");
-        ui.add_space(4.0);
-
-        egui::Grid::new("shortcuts_grid")
-            .striped(true)
-            .show(ui, |ui| {
-                for (key, desc) in [
-                    ("1-6", "Switch tabs"),
-                    ("Tab", "Next tab"),
-                    ("/", "Filter / search"),
-                    ("Esc", "Clear filter / close popup"),
-                    ("q", "Quit"),
-                    ("r", "Refresh"),
-                ] {
-                    ui.strong(key);
-                    ui.label(desc);
-                    ui.end_row();
-                }
-            });
-
-        ui.add_space(16.0);
-
-        // ── About button ──
-        if ui.button("About").clicked() {
-            help.show_about = !help.show_about;
-        }
-
-        if help.show_about {
-            ui.add_space(8.0);
-            egui::Frame::new()
-                .fill(ui.visuals().faint_bg_color)
-                .corner_radius(8.0)
-                .inner_margin(16.0)
-                .show(ui, |ui| {
-                    ui.heading("About");
-                    ui.add_space(8.0);
-
-                    egui::Grid::new("about_grid").show(ui, |ui| {
-                        ui.strong("Author:");
-                        ui.label("Viacheslav Gordeev");
-                        ui.end_row();
-
-                        ui.strong("Email:");
-                        ui.label("qulisun@gmail.com");
-                        ui.end_row();
-
-                        ui.strong("Source:");
-                        ui.hyperlink_to(
-                            "github.com/qulisun/fry-tftp-server",
-                            "https://github.com/qulisun/fry-tftp-server",
-                        );
-                        ui.end_row();
-
-                        ui.strong("License:");
-                        ui.label("MIT");
-                        ui.end_row();
-                    });
-
-                    ui.add_space(8.0);
-                    ui.label(
-                        egui::RichText::new("Built with Rust, egui, tokio, ratatui")
-                            .small()
-                            .weak(),
-                    );
-                });
         }
     });
 }
