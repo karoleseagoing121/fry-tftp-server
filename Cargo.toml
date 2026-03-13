@@ -51,6 +51,7 @@ memmap2 = "0.9"
 
 # === GUI (optional) ===
 eframe = { version = "0.31", optional = true }
+png = { version = "0.17", optional = true }
 egui = { version = "0.31", optional = true }
 egui_plot = { version = "0.31", optional = true }
 rfd = { version = "0.15", optional = true }
@@ -84,7 +85,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
 default = ["gui", "tui"]
-gui = ["dep:eframe", "dep:egui", "dep:egui_plot", "dep:rfd", "dep:tray-icon", "dep:arboard"]
+gui = ["dep:eframe", "dep:egui", "dep:egui_plot", "dep:rfd", "dep:tray-icon", "dep:arboard", "dep:png"]
 tui = ["dep:ratatui", "dep:crossterm"]
 
 [[bin]]

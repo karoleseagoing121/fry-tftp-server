@@ -8,27 +8,19 @@ pub struct TrayState {
     pub quit_id: tray_icon::menu::MenuId,
 }
 
-fn create_icon(r: u8, g: u8, b: u8) -> Icon {
-    let size = 16u32;
-    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
-    for y in 0..size {
-        for x in 0..size {
-            // Simple circle
-            let dx = x as f32 - 7.5;
-            let dy = y as f32 - 7.5;
-            let dist = (dx * dx + dy * dy).sqrt();
-            if dist < 7.0 {
-                rgba.extend_from_slice(&[r, g, b, 255]);
-            } else if dist < 8.0 {
-                // Anti-alias edge
-                let alpha = ((8.0 - dist) * 255.0) as u8;
-                rgba.extend_from_slice(&[r, g, b, alpha]);
-            } else {
-                rgba.extend_from_slice(&[0, 0, 0, 0]);
-            }
-        }
-    }
-    Icon::from_rgba(rgba, size, size).expect("failed to create tray icon")
+/// Embedded 32x32 PNG tray icon
+const TRAY_ICON_PNG: &[u8] = include_bytes!("tray_icon_32.png");
+
+fn load_icon_from_png() -> Icon {
+    let decoder = png::Decoder::new(std::io::Cursor::new(TRAY_ICON_PNG));
+    let mut reader = decoder.read_info().expect("failed to read tray icon PNG");
+    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let info = reader
+        .next_frame(&mut buf)
+        .expect("failed to decode tray icon PNG");
+    let rgba = &buf[..info.buffer_size()];
+    Icon::from_rgba(rgba.to_vec(), info.width, info.height)
+        .expect("failed to create tray icon from PNG")
 }
 
 pub fn create_tray() -> anyhow::Result<TrayState> {
@@ -46,7 +38,7 @@ pub fn create_tray() -> anyhow::Result<TrayState> {
     menu.append(&stop_item)?;
     menu.append(&quit_item)?;
 
-    let icon = create_icon(0x4c, 0xaf, 0x50); // green = running
+    let icon = load_icon_from_png();
 
     let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
@@ -71,13 +63,12 @@ pub enum TrayVisualState {
 }
 
 pub fn update_tray_icon(tray: &TrayState, visual: TrayVisualState) {
-    let (r, g, b, tooltip) = match visual {
-        TrayVisualState::Running => (0x4c, 0xaf, 0x50, "Fry TFTP Server - Running"),
-        TrayVisualState::Stopped => (0x9e, 0x9e, 0x9e, "Fry TFTP Server - Stopped"),
-        TrayVisualState::Error => (0xf4, 0x43, 0x36, "Fry TFTP Server - Error"),
+    let tooltip = match visual {
+        TrayVisualState::Running => "Fry TFTP Server - Running",
+        TrayVisualState::Stopped => "Fry TFTP Server - Stopped",
+        TrayVisualState::Error => "Fry TFTP Server - Error",
     };
-    let icon = create_icon(r, g, b);
-    let _ = tray.tray_icon.set_icon(Some(icon));
+    // Always use the same icon (custom PNG), just update tooltip
     let _ = tray.tray_icon.set_tooltip(Some(tooltip));
 }
 

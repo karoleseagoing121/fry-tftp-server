@@ -1662,6 +1662,7 @@ dependencies = [
  "memmap2",
  "nix",
  "notify",
+ "png 0.17.16",
  "proptest",
  "ratatui",
  "rfd",
