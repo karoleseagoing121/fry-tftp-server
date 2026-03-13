@@ -1,3 +1,0 @@
-This is a small text fixture file for TFTP server integration tests.
-It contains exactly 180 bytes of ASCII text content, suitable for
-basic RRQ transfer testing with the default 512-byte block size.

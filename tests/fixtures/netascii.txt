@@ -1,3 +1,0 @@
-Line one with LF ending
-Line two with LF ending
-Line three also LF

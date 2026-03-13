@@ -1,3 +1,9 @@
 /target
 /PRD/
+/tests/
+/test_root/
+/fuzz/
+/benches/
+CLAUDE.md
+AGENTS.md
 .DS_Store
