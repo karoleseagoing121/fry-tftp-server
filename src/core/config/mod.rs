@@ -345,7 +345,6 @@ impl Config {
         let content = toml::to_string_pretty(self)?;
         std::fs::write(&target, &content)?;
         tracing::info!(path = %target.display(), "config saved to disk");
-        eprintln!("[config] saved to {}", target.display());
         Ok(target)
     }
 

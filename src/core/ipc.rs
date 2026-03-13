@@ -10,7 +10,13 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
+
+/// Maximum concurrent IPC connections to prevent resource exhaustion.
+const MAX_IPC_CONNECTIONS: usize = 50;
+/// Per-connection read timeout to prevent idle connections from holding slots.
+const IPC_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 use crate::core::config::Config;
 use crate::core::state::AppState;
@@ -121,6 +127,7 @@ mod unix_ipc {
         tracing::info!(path=%path.display(), "IPC listener started (Unix socket)");
 
         let cleanup_path = path.clone();
+        let semaphore = Arc::new(Semaphore::new(MAX_IPC_CONNECTIONS));
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -132,17 +139,31 @@ mod unix_ipc {
                         match result {
                             Ok((stream, _)) => {
                                 let state = state.clone();
+                                let permit = match semaphore.clone().try_acquire_owned() {
+                                    Ok(p) => p,
+                                    Err(_) => {
+                                        tracing::warn!("IPC connection limit reached, dropping connection");
+                                        drop(stream);
+                                        continue;
+                                    }
+                                };
                                 tokio::spawn(async move {
-                                    let (reader, mut writer) = stream.into_split();
-                                    let mut reader = BufReader::new(reader);
-                                    let mut line = String::new();
+                                    let _permit = permit; // held until task completes
+                                    let result = tokio::time::timeout(IPC_CONNECTION_TIMEOUT, async {
+                                        let (reader, mut writer) = stream.into_split();
+                                        let mut reader = BufReader::new(reader);
+                                        let mut line = String::new();
 
-                                    while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
-                                        let response = handle_command(&line, &state);
-                                        let _ = writer.write_all(response.as_bytes()).await;
-                                        let _ = writer.write_all(b"\n").await;
-                                        let _ = writer.flush().await;
-                                        line.clear();
+                                        while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+                                            let response = handle_command(&line, &state);
+                                            let _ = writer.write_all(response.as_bytes()).await;
+                                            let _ = writer.write_all(b"\n").await;
+                                            let _ = writer.flush().await;
+                                            line.clear();
+                                        }
+                                    }).await;
+                                    if result.is_err() {
+                                        tracing::debug!("IPC connection timed out");
                                     }
                                 });
                             }
@@ -177,6 +198,7 @@ mod windows_ipc {
     ) -> anyhow::Result<()> {
         tracing::info!(pipe=%PIPE_NAME, "IPC listener started (Named Pipe)");
 
+        let semaphore = Arc::new(Semaphore::new(MAX_IPC_CONNECTIONS));
         tokio::spawn(async move {
             loop {
                 // Create a new pipe instance for each connection
@@ -201,17 +223,30 @@ mod windows_ipc {
                         match result {
                             Ok(()) => {
                                 let state = state.clone();
+                                let permit = match semaphore.clone().try_acquire_owned() {
+                                    Ok(p) => p,
+                                    Err(_) => {
+                                        tracing::warn!("IPC connection limit reached, dropping connection");
+                                        continue;
+                                    }
+                                };
                                 tokio::spawn(async move {
-                                    let (reader, mut writer) = tokio::io::split(server);
-                                    let mut reader = BufReader::new(reader);
-                                    let mut line = String::new();
+                                    let _permit = permit;
+                                    let result = tokio::time::timeout(IPC_CONNECTION_TIMEOUT, async {
+                                        let (reader, mut writer) = tokio::io::split(server);
+                                        let mut reader = BufReader::new(reader);
+                                        let mut line = String::new();
 
-                                    while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
-                                        let response = handle_command(&line, &state);
-                                        let _ = writer.write_all(response.as_bytes()).await;
-                                        let _ = writer.write_all(b"\n").await;
-                                        let _ = writer.flush().await;
-                                        line.clear();
+                                        while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+                                            let response = handle_command(&line, &state);
+                                            let _ = writer.write_all(response.as_bytes()).await;
+                                            let _ = writer.write_all(b"\n").await;
+                                            let _ = writer.flush().await;
+                                            line.clear();
+                                        }
+                                    }).await;
+                                    if result.is_err() {
+                                        tracing::debug!("IPC connection timed out");
                                     }
                                 });
                             }

@@ -249,6 +249,17 @@ impl AppState {
         }
     }
 
+    /// Remove rate limiter entries that have been idle for longer than 2x the window.
+    pub async fn cleanup_stale_rate_limits(&self) {
+        let config = self.config();
+        let window = std::time::Duration::from_secs(config.security.rate_limit_window_seconds);
+        let expiry = window.saturating_mul(2);
+        let now = Instant::now();
+
+        let mut rate_map = self.rate_limiter.write().await;
+        rate_map.retain(|_ip, entry| now.duration_since(entry.window_start) < expiry);
+    }
+
     /// Count active sessions for an IP
     pub async fn count_sessions_by_ip(&self, ip: IpAddr) -> usize {
         let sessions = self.active_sessions.read().await;

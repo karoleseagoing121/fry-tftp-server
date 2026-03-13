@@ -55,6 +55,8 @@ pub async fn run_server(state: Arc<AppState>) -> anyhow::Result<()> {
                                 tracing::info!(cleaned=%cleaned, "stale sessions cleaned up");
                             }
                         }
+                        // Evict expired rate-limiter entries to prevent unbounded growth
+                        cleanup_state.cleanup_stale_rate_limits().await;
                     }
                 }
             }

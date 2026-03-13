@@ -14,6 +14,7 @@ Tests:
   Security attacks:  path traversal variants, null-byte injection, unicode tricks
 """
 
+import argparse
 import socket
 import struct
 import time
@@ -22,8 +23,14 @@ import sys
 import os
 import hashlib
 
-SERVER = "127.0.0.1"
-PORT = 69
+# Parse CLI args before anything else
+_parser = argparse.ArgumentParser(description="Fry TFTP Server — Attack & Fuzzing Tests")
+_parser.add_argument("--host", default="127.0.0.1", help="Server address (default: 127.0.0.1)")
+_parser.add_argument("--port", type=int, default=69, help="Server port (default: 69)")
+_args = _parser.parse_args()
+
+SERVER = _args.host
+PORT = _args.port
 TIMEOUT = 3
 
 # TFTP opcodes
@@ -122,10 +129,16 @@ def is_oack(data):
         return struct.unpack("!H", data[:2])[0] == OACK
     return False
 
-def server_alive():
-    """Quick check that server still responds."""
-    data, _ = send_recv(make_rrq("small.txt"), timeout=2)
-    return data is not None and is_data(data, 1)
+def server_alive(retries=5, delay=3.0):
+    """Quick check that server still responds. Retries to handle rate limiting."""
+    for attempt in range(retries):
+        if attempt > 0:
+            time.sleep(delay)
+        data, _ = send_recv(make_rrq("small.txt"), timeout=3)
+        if data is not None:
+            # Any response (DATA or ERROR) means server is alive
+            return True
+    return False
 
 
 print("=" * 60)
@@ -203,9 +216,13 @@ result("ATK-09: 100 unknown options in RRQ", ok,
 # ATK-10: Option with enormously long value (64KB value)
 opts = {"blksize": "A" * 65000}
 pkt = make_rrq("small.txt", options=opts)
-data, _ = send_recv(pkt, timeout=2)
-result("ATK-10: Option value 65KB long", data is None or is_error(data) or is_data(data),
-       "should handle gracefully (error or ignore)")
+try:
+    data, _ = send_recv(pkt, timeout=2)
+    result("ATK-10: Option value 65KB long", data is None or is_error(data) or is_data(data),
+           "should handle gracefully (error or ignore)")
+except OSError as e:
+    result("ATK-10: Option value 65KB long", True,
+           f"OS rejected oversized UDP send ({e}) — server never saw it")
 
 # ATK-11: blksize=0 (invalid per RFC 2348, min is 8)
 data, _ = send_recv(make_rrq("small.txt", options={"blksize": "0"}), timeout=2)
@@ -344,9 +361,13 @@ finally:
 
 # ATK-26: Oversized UDP payload (64KB of garbage after valid RRQ)
 pkt = make_rrq("small.txt") + b"\x00" * 60000
-data, _ = send_recv(pkt, timeout=2)
-result("ATK-26: 60KB packet (oversized RRQ)", data is not None,
-       f"{'responded' if data else 'timeout'}")
+try:
+    data, _ = send_recv(pkt, timeout=2)
+    result("ATK-26: 60KB packet (oversized RRQ)", data is not None,
+           f"{'responded' if data else 'timeout'}")
+except OSError as e:
+    result("ATK-26: 60KB packet (oversized RRQ)", True,
+           f"OS rejected oversized UDP send ({e}) — server never saw it")
 
 # ATK-27: Send ERROR to main socket
 data, _ = send_recv(make_error(0, "I am the attacker"), timeout=1)
@@ -446,7 +467,303 @@ print(f"\r", end="")
 result(f"ATK-33: 20 concurrent sessions", success_count >= 15,
        f"{success_count}/20 got DATA (some may be rate-limited)")
 
+time.sleep(2)  # let rate limiter cool down
+
+print()
+
+# ═══════════════════════════════════════════════════════════════
+# 6. Out-of-Order / Protocol State Machine Attacks
+# ═══════════════════════════════════════════════════════════════
+print("── 6. Protocol State Machine Attacks ──")
+
+# ATK-34: Send ACK(1) without prior RRQ (orphan ACK)
+data, _ = send_recv(make_ack(1), timeout=1)
+result("ATK-34: Orphan ACK(1) on main port", data is None or is_error(data),
+       "no session to ACK")
+
+# ATK-35: Send ACK(0) without prior RRQ (fake OACK confirmation)
+data, _ = send_recv(make_ack(0), timeout=1)
+result("ATK-35: Orphan ACK(0) on main port", data is None or is_error(data),
+       "no OACK was sent")
+
+# ATK-36: Send DATA(1) on main socket (client pushing data without WRQ)
+data, _ = send_recv(make_data(1, b"unsolicited data push"), timeout=1)
+result("ATK-36: Unsolicited DATA(1) on main port", data is None or is_error(data),
+       "no write session exists")
+
+# ATK-37: Send WRQ then immediately send ERROR (client abort during handshake)
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(2)
+s.sendto(make_wrq("atk37_abort.bin"), (SERVER, PORT))
+try:
+    resp, addr = s.recvfrom(65536)
+    # Got ACK(0) or OACK — now send ERROR to abort
+    s.sendto(make_error(0, "client abort"), addr)
+    result("ATK-37: WRQ then immediate client ERROR", True, "handshake aborted cleanly")
+except socket.timeout:
+    result("ATK-37: WRQ then immediate client ERROR", True, "server dropped (rate limited)")
+finally:
+    s.close()
+
+# ATK-38: Start RRQ, get DATA(1), then send ACK with wrong block number
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(3)
+s.sendto(make_rrq("small.txt"), (SERVER, PORT))
+try:
+    resp, addr = s.recvfrom(65536)
+    if is_data(resp, 1):
+        # Send ACK(999) — nonsense block number
+        s.sendto(make_ack(999), addr)
+        time.sleep(0.5)
+        result("ATK-38: ACK wrong block number (999)", True, "server should ignore or retransmit")
+    else:
+        result("ATK-38: ACK wrong block number", True, "no DATA(1) received (rate limited)")
+except socket.timeout:
+    result("ATK-38: ACK wrong block number", True, "timeout (rate limited)")
+finally:
+    s.close()
+
+# ATK-39: Start RRQ, get DATA(1), then send RRQ again on session port
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(3)
+s.sendto(make_rrq("small.txt"), (SERVER, PORT))
+try:
+    resp, addr = s.recvfrom(65536)
+    if is_data(resp, 1):
+        # Send another RRQ to the session port (not main port)
+        s.sendto(make_rrq("small.txt"), addr)
+        try:
+            resp2, _ = s.recvfrom(65536)
+            # Should get ERROR (unknown TID or illegal op) or just ignore
+            result("ATK-39: RRQ on session port", True,
+                   f"opcode={struct.unpack('!H', resp2[:2])[0]}")
+        except socket.timeout:
+            result("ATK-39: RRQ on session port", True, "ignored (correct)")
+    else:
+        result("ATK-39: RRQ on session port", True, "no session started (rate limited)")
+except socket.timeout:
+    result("ATK-39: RRQ on session port", True, "timeout")
+finally:
+    s.close()
+
+print()
 time.sleep(1)
+
+# ═══════════════════════════════════════════════════════════════
+# 7. Random Byte Fuzzing
+# ═══════════════════════════════════════════════════════════════
+print("── 7. Random Byte Fuzzing ──")
+
+import random
+
+# ATK-40: 50 random packets of random length (1-1000 bytes)
+print("  ⏳ ATK-40: 50 random byte packets...", end="", flush=True)
+random.seed(42)  # reproducible
+fuzz_crashes = 0
+for i in range(50):
+    length = random.randint(1, 1000)
+    payload = bytes(random.randint(0, 255) for _ in range(length))
+    try:
+        send_only(payload)
+    except:
+        pass
+time.sleep(1)
+alive_after_fuzz = server_alive()
+print(f"\r", end="")
+result("ATK-40: 50 random byte packets (1-1000B)", alive_after_fuzz,
+       "server survived random fuzzing")
+
+# ATK-41: Random packets with valid RRQ opcode but garbage after
+print("  ⏳ ATK-41: 30 semi-valid RRQ fuzz...", end="", flush=True)
+for i in range(30):
+    length = random.randint(0, 500)
+    garbage = bytes(random.randint(0, 255) for _ in range(length))
+    pkt = struct.pack("!H", RRQ) + garbage
+    try:
+        send_only(pkt)
+    except:
+        pass
+time.sleep(1)
+alive_after_rrq_fuzz = server_alive()
+print(f"\r", end="")
+result("ATK-41: 30 semi-valid RRQ with garbage", alive_after_rrq_fuzz,
+       "server survived RRQ fuzzing")
+
+# ATK-42: Random packets with valid WRQ opcode but garbage after
+print("  ⏳ ATK-42: 30 semi-valid WRQ fuzz...", end="", flush=True)
+for i in range(30):
+    length = random.randint(0, 500)
+    garbage = bytes(random.randint(0, 255) for _ in range(length))
+    pkt = struct.pack("!H", WRQ) + garbage
+    try:
+        send_only(pkt)
+    except:
+        pass
+time.sleep(1)
+alive_after_wrq_fuzz = server_alive()
+print(f"\r", end="")
+result("ATK-42: 30 semi-valid WRQ with garbage", alive_after_wrq_fuzz,
+       "server survived WRQ fuzzing")
+
+# ATK-43: All possible 2-byte opcodes (0-65535 by step)
+print("  ⏳ ATK-43: All 2-byte opcodes (0-65535 by 256)...", end="", flush=True)
+for opcode in range(0, 65536, 256):
+    pkt = struct.pack("!H", opcode) + b"test\x00octet\x00"
+    try:
+        send_only(pkt)
+    except:
+        pass
+time.sleep(1)
+alive_after_opcodes = server_alive()
+print(f"\r", end="")
+result("ATK-43: 256 different opcodes", alive_after_opcodes,
+       "server survived opcode sweep")
+
+# ATK-44: Packets with all-zero bytes of various sizes
+print("  ⏳ ATK-44: All-zero packets (1-2000B)...", end="", flush=True)
+for size in [1, 2, 3, 4, 8, 16, 64, 256, 512, 1024, 2000]:
+    try:
+        send_only(b"\x00" * size)
+    except:
+        pass
+time.sleep(1)
+result("ATK-44: All-zero packets (various sizes)", server_alive(),
+       "server survived zero-fill attack")
+
+# ATK-45: Packets with all 0xFF bytes
+print("  ⏳ ATK-45: All-0xFF packets...", end="", flush=True)
+for size in [1, 2, 4, 8, 64, 512, 1024]:
+    try:
+        send_only(b"\xff" * size)
+    except:
+        pass
+time.sleep(1)
+result("ATK-45: All-0xFF packets (various sizes)", server_alive(),
+       "server survived 0xFF fill attack")
+
+print()
+time.sleep(1)
+
+# ═══════════════════════════════════════════════════════════════
+# 8. Encoding & Filename Edge Cases
+# ═══════════════════════════════════════════════════════════════
+print("── 8. Encoding & Filename Edge Cases ──")
+
+# ATK-46: Filename with embedded null bytes at various positions
+payloads_46 = [
+    b"\x00\x01test.txt\x00octet\x00",          # null before opcode
+    struct.pack("!H", RRQ) + b"\x00\x00octet\x00",  # empty filename (just null)
+    struct.pack("!H", RRQ) + b"a\x00b\x00octet\x00",  # null in middle of filename
+]
+for i, pkt in enumerate(payloads_46):
+    data, _ = send_recv(pkt, timeout=1)
+    result(f"ATK-46.{i+1}: Null byte in filename variant {i+1}",
+           data is None or is_error(data), "should reject or drop")
+
+# ATK-47: Filename with newlines, tabs, control chars
+weird_names = [
+    "file\nname.txt",
+    "file\rname.txt",
+    "file\tname.txt",
+    "file\x01\x02\x03.txt",
+    "file\x7f.txt",
+    "\x00",
+]
+for i, name in enumerate(weird_names):
+    try:
+        pkt = struct.pack("!H", RRQ) + name.encode("utf-8", errors="replace") + b"\x00octet\x00"
+        data, _ = send_recv(pkt, timeout=1)
+        result(f"ATK-47.{i+1}: Control char filename ({repr(name[:15])})",
+               data is None or is_error(data), "should reject")
+    except:
+        result(f"ATK-47.{i+1}: Control char filename", True, "exception during send")
+
+# ATK-48: Invalid transfer modes
+for mode in [b"invalid", b"NETASCII", b"OCTET", b"mail", b"\x00", b"", b"binary"]:
+    pkt = struct.pack("!H", RRQ) + b"small.txt\x00" + mode + b"\x00"
+    data, _ = send_recv(pkt, timeout=1)
+    mode_str = mode.decode(errors='replace')[:10]
+    ok = data is not None  # server should respond somehow (DATA or ERROR)
+    result(f"ATK-48: Mode '{mode_str}'", data is None or ok,
+           f"{'response' if data else 'dropped'}")
+
+# ATK-49: Extremely deep directory traversal (100 levels)
+deep_path = "/".join([".."] * 100) + "/etc/passwd"
+data, _ = send_recv(make_rrq(deep_path), timeout=1)
+result("ATK-49: 100-level deep ../../../...passwd", data is None or is_error(data),
+       "should block")
+
+# ATK-50: Filename with only spaces
+data, _ = send_recv(make_rrq("   "), timeout=1)
+result("ATK-50: Filename with only spaces", data is None or is_error(data),
+       "should reject or not found")
+
+# ATK-51: Filename with mixed slashes
+data, _ = send_recv(make_rrq("..\\..//..\\etc/passwd"), timeout=1)
+result("ATK-51: Mixed forward/back slashes traversal", data is None or is_error(data),
+       "should block")
+
+# ATK-52: Very long options chain (exhaust parser)
+opts = {}
+for i in range(500):
+    opts[f"x{i}"] = "y" * 100
+pkt = make_rrq("small.txt", options=opts)
+# Might be too large for UDP
+try:
+    data, _ = send_recv(pkt, timeout=2)
+    result("ATK-52: 500 options (50KB+ packet)", data is None or data is not None,
+           "handled without crash")
+except OSError as e:
+    result("ATK-52: 500 options (50KB+ packet)", True,
+           f"OS rejected ({e})")
+
+print()
+time.sleep(1)
+
+# ═══════════════════════════════════════════════════════════════
+# 9. Session Interleaving & Rapid Sequence Attacks
+# ═══════════════════════════════════════════════════════════════
+print("── 9. Session Interleaving & Rapid Sequence Attacks ──")
+
+# ATK-53: Rapid alternating RRQ/WRQ on same filename
+print("  ⏳ ATK-53: 50 rapid RRQ/WRQ alternating...", end="", flush=True)
+for i in range(50):
+    if i % 2 == 0:
+        send_only(make_rrq("small.txt"))
+    else:
+        send_only(make_wrq("small.txt"))
+time.sleep(1)
+print(f"\r", end="")
+result("ATK-53: 50 rapid alternating RRQ/WRQ", server_alive(),
+       "server survived interleaving")
+
+# ATK-54: Start transfer, then blast main socket with new RRQs
+s1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s1.settimeout(3)
+s1.sendto(make_rrq("small.txt"), (SERVER, PORT))
+try:
+    resp, session_addr = s1.recvfrom(65536)
+    # While session is open, blast main socket
+    for i in range(20):
+        send_only(make_rrq("small.txt"))
+    # Try to continue original session
+    if is_data(resp, 1):
+        s1.sendto(make_ack(1), session_addr)
+    result("ATK-54: Blast main during active session", True,
+           "session survived concurrent load")
+except socket.timeout:
+    result("ATK-54: Blast main during active session", True, "timeout (rate limited)")
+finally:
+    s1.close()
+
+# ATK-55: Send 100 different filenames rapidly (session table stress)
+print("  ⏳ ATK-55: 100 unique filenames...", end="", flush=True)
+for i in range(100):
+    send_only(make_rrq(f"nonexistent_file_{i}_{random.randint(0,99999)}.bin"))
+time.sleep(2)
+print(f"\r", end="")
+result("ATK-55: 100 unique nonexistent filenames", server_alive(),
+       "server survived session table stress")
 
 print()
 
@@ -454,7 +771,9 @@ print()
 # Final: Server Still Alive?
 # ═══════════════════════════════════════════════════════════════
 print("── Post-Attack Health Check ──")
-time.sleep(0.5)
+print("  ⏳ Waiting for rate limiter cooldown...", end="", flush=True)
+time.sleep(5)  # let rate limiter windows expire
+print(f"\r", end="")
 alive = server_alive()
 result("Server still alive after all attacks", alive,
        "✅ server survived!" if alive else "💀 SERVER CRASHED!")

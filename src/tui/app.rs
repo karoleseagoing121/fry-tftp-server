@@ -8,7 +8,7 @@ use ratatui::layout::{Constraint, Direction as LayoutDirection, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, Borders, Cell, Clear, List, ListItem, Paragraph, Row, Sparkline, Table, Tabs, Wrap,
+    Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Sparkline, Table, Tabs, Wrap,
 };
 use ratatui::Frame;
 
@@ -25,6 +25,7 @@ enum Tab {
     Log,
     Config,
     Acl,
+    Help,
 }
 
 impl Tab {
@@ -35,6 +36,7 @@ impl Tab {
         Tab::Log,
         Tab::Config,
         Tab::Acl,
+        Tab::Help,
     ];
 
     fn title(&self) -> &str {
@@ -45,6 +47,7 @@ impl Tab {
             Tab::Log => " 4:Log ",
             Tab::Config => " 5:Config ",
             Tab::Acl => " 6:ACL ",
+            Tab::Help => " 7:Help ",
         }
     }
 
@@ -56,6 +59,7 @@ impl Tab {
             Tab::Log => 3,
             Tab::Config => 4,
             Tab::Acl => 5,
+            Tab::Help => 6,
         }
     }
 }
@@ -227,7 +231,7 @@ impl TuiApp {
 
     // ─── Data updates ────────────────────────────────────────────────────────
 
-    fn tick(&mut self) {
+    pub fn tick(&mut self) {
         // Bandwidth
         let now = Instant::now();
         if now.duration_since(self.last_sample).as_millis() >= 1000 {
@@ -588,17 +592,24 @@ impl TuiApp {
             KeyCode::Char('q') => return true,
             KeyCode::Char('?') => self.show_help = true,
             KeyCode::Char('s') => self.state.cancel_shutdown(),
-            KeyCode::Char('r') => self.refresh_config(),
+            KeyCode::Char('r') => {
+                self.refresh_config();
+                self.files_dirty = true;
+            }
             KeyCode::Char('/') => {
                 self.filter_active = true;
                 self.filter_text.clear();
             }
             KeyCode::Char('1') => self.current_tab = Tab::Dashboard,
-            KeyCode::Char('2') => self.current_tab = Tab::Files,
+            KeyCode::Char('2') => {
+                self.current_tab = Tab::Files;
+                self.files_dirty = true;
+            }
             KeyCode::Char('3') => self.current_tab = Tab::Transfers,
             KeyCode::Char('4') => self.current_tab = Tab::Log,
             KeyCode::Char('5') => self.current_tab = Tab::Config,
             KeyCode::Char('6') => self.current_tab = Tab::Acl,
+            KeyCode::Char('7') => self.current_tab = Tab::Help,
             KeyCode::Tab => {
                 let i = self.current_tab.index();
                 self.current_tab = Tab::ALL[(i + 1) % Tab::ALL.len()];
@@ -678,6 +689,7 @@ impl TuiApp {
             }
             Tab::Config => self.config_scroll = self.config_scroll.saturating_sub(1),
             Tab::Acl => self.acl_scroll = self.acl_scroll.saturating_sub(1),
+            Tab::Help => {} // static content, no scroll state
         }
     }
 
@@ -704,6 +716,7 @@ impl TuiApp {
                 }
             }
             Tab::Acl => self.acl_scroll += 1,
+            Tab::Help => {} // static content, no scroll state
         }
     }
 
@@ -783,6 +796,7 @@ impl TuiApp {
             Tab::Log => self.render_log(frame, chunks[1]),
             Tab::Config => self.render_config(frame, chunks[1]),
             Tab::Acl => self.render_acl(frame, chunks[1]),
+            Tab::Help => self.render_help(frame, chunks[1]),
         }
 
         // Status bar
@@ -812,7 +826,7 @@ impl TuiApp {
 
         // Overlays
         if self.show_help {
-            self.render_help(frame);
+            self.render_help_overlay(frame);
         }
         if let Some(idx) = self.config_editing {
             self.render_edit_popup(frame, idx);
@@ -990,7 +1004,7 @@ impl TuiApp {
 
     // ─── Files ───────────────────────────────────────────────────────────────
 
-    fn render_files(&self, frame: &mut Frame, area: Rect) {
+    fn render_files(&mut self, frame: &mut Frame, area: Rect) {
         let items: Vec<ListItem> = self
             .files_entries
             .iter()
@@ -1015,15 +1029,20 @@ impl TuiApp {
             })
             .collect();
 
-        let list = List::new(items).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(format!(
-                    " Files: {} (Esc: up, Enter: open) ",
-                    self.files_root.display()
-                )),
-        );
-        frame.render_widget(list, area);
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(format!(
+                        " Files: {} (Esc: up, Enter: open) ",
+                        self.files_root.display()
+                    )),
+            )
+            .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
+
+        let mut list_state = ListState::default();
+        list_state.select(Some(self.files_scroll));
+        frame.render_stateful_widget(list, area, &mut list_state);
     }
 
     // ─── Transfers ───────────────────────────────────────────────────────────
@@ -1250,7 +1269,7 @@ impl TuiApp {
 
     // ─── Help Overlay ────────────────────────────────────────────────────────
 
-    fn render_help(&self, frame: &mut Frame) {
+    fn render_help_overlay(&self, frame: &mut Frame) {
         let area = centered_rect(50, 60, frame.area());
         frame.render_widget(Clear, area);
 
@@ -1302,6 +1321,118 @@ impl TuiApp {
             .block(Block::default().borders(Borders::ALL).title(" Edit Value "))
             .wrap(Wrap { trim: false });
         frame.render_widget(popup, area);
+    }
+
+    // ─── Help ─────────────────────────────────────────────────────────────────
+
+    fn render_help(&self, frame: &mut Frame, area: Rect) {
+        let version = env!("CARGO_PKG_VERSION");
+
+        let mut lines = vec![
+            Line::from(Span::styled(
+                "Fry TFTP Server",
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            )),
+            Line::from(Span::styled(
+                "High-performance, cross-platform TFTP server",
+                Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC),
+            )),
+            Line::from(format!("Version: {}", version)),
+            Line::from(""),
+            Line::from(Span::styled(
+                "━━━ Supported RFCs ━━━",
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  RFC 1350  ", Style::default().fg(Color::Cyan)),
+                Span::raw("TFTP Protocol — RRQ, WRQ, DATA, ACK, ERROR, octet & netascii modes"),
+            ]),
+            Line::from(vec![
+                Span::styled("  RFC 2347  ", Style::default().fg(Color::Cyan)),
+                Span::raw("Option Extension — OACK negotiation for extended options"),
+            ]),
+            Line::from(vec![
+                Span::styled("  RFC 2348  ", Style::default().fg(Color::Cyan)),
+                Span::raw("Blocksize Option — configurable block size (8–65464 bytes)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  RFC 2349  ", Style::default().fg(Color::Cyan)),
+                Span::raw("Timeout & Transfer Size — timeout negotiation and tsize reporting"),
+            ]),
+            Line::from(vec![
+                Span::styled("  RFC 7440  ", Style::default().fg(Color::Cyan)),
+                Span::raw("Windowsize Option — sliding window for high throughput"),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "━━━ Features ━━━",
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+        ];
+
+        let features = [
+            "GUI mode (egui) with dashboard, file browser, transfer history, log viewer",
+            "TUI mode (ratatui) for terminal-based operation",
+            "Headless mode for server/daemon deployment",
+            "Hot-reload configuration via file watcher and SIGHUP",
+            "Access Control Lists (ACL) with whitelist/blacklist and CIDR support",
+            "Per-IP rate limiting and session limits",
+            "Memory-mapped file I/O for large file transfers",
+            "Sliding window protocol for high throughput (500+ MB/s)",
+            "Netascii and octet transfer modes",
+            "Path traversal protection and symlink policy enforcement",
+            "Circular log rotation with configurable line limits",
+            "System tray integration with status indicators",
+            "Windows Service, systemd, and launchd support",
+            "Environment variable overrides (TFTP_SERVER_*)",
+        ];
+        for feat in &features {
+            lines.push(Line::from(vec![
+                Span::styled("  - ", Style::default().fg(Color::Green)),
+                Span::raw(*feat),
+            ]));
+        }
+
+        lines.extend([
+            Line::from(""),
+            Line::from(Span::styled(
+                "━━━ About ━━━",
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  Author:  ", Style::default().fg(Color::Cyan)),
+                Span::raw("Viacheslav Gordeev"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Email:   ", Style::default().fg(Color::Cyan)),
+                Span::raw("qulisun@gmail.com"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Source:  ", Style::default().fg(Color::Cyan)),
+                Span::raw("github.com/qulisun/fry-tftp-server"),
+            ]),
+            Line::from(vec![
+                Span::styled("  License: ", Style::default().fg(Color::Cyan)),
+                Span::raw("Proprietary"),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "  Built with Rust, egui, ratatui, tokio",
+                Style::default().fg(Color::DarkGray),
+            )),
+        ]);
+
+        let help = Paragraph::new(lines)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Help "),
+            )
+            .wrap(Wrap { trim: false });
+        frame.render_widget(help, area);
     }
 }
 

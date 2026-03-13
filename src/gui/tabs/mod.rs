@@ -39,4 +39,16 @@ impl Tab {
             Tab::Help => "Help",
         }
     }
+
+    pub fn icon(&self) -> &str {
+        match self {
+            Tab::Dashboard => "\u{1F4CA}",
+            Tab::Files => "\u{1F4C1}",
+            Tab::Transfers => "\u{1F504}",
+            Tab::Log => "\u{1F4DD}",
+            Tab::Config => "\u{2699}",
+            Tab::Acl => "\u{1F6E1}",
+            Tab::Help => "\u{2753}",
+        }
+    }
 }

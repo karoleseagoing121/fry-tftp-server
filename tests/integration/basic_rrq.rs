@@ -7,6 +7,14 @@ use std::time::Duration;
 
 use fry_tftp_server::core::protocol::packet::*;
 
+/// Return the canonical path of a temp directory.
+/// On macOS `/var` is a symlink to `/private/var`, which trips the
+/// server's symlink check.  Canonicalizing up-front makes the tests
+/// work on every platform.
+fn canonical_temp_path(dir: &tempfile::TempDir) -> std::path::PathBuf {
+    dir.path().canonicalize().expect("failed to canonicalize temp dir")
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Packet roundtrip tests (unit-level)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -75,7 +83,7 @@ async fn test_rrq_localhost() {
     std::fs::write(dir.path().join("data.bin"), &test_data).unwrap();
 
     let (client, _addr, state, handle) =
-        mini_server(dir.path().to_path_buf(), |_| {}).await;
+        mini_server(canonical_temp_path(&dir), |_| {}).await;
 
     let received = client.get("data.bin").await.unwrap();
     assert_eq!(received, test_data);
@@ -90,7 +98,7 @@ async fn test_rrq_zero_byte_file() {
     std::fs::write(dir.path().join("empty.bin"), b"").unwrap();
 
     let (client, _addr, state, handle) =
-        mini_server(dir.path().to_path_buf(), |_| {}).await;
+        mini_server(canonical_temp_path(&dir), |_| {}).await;
 
     let received = client.get("empty.bin").await.unwrap();
     assert!(received.is_empty());
@@ -104,7 +112,7 @@ async fn test_rrq_file_not_found() {
     let dir = tempfile::tempdir().unwrap();
 
     let (client, _addr, state, handle) =
-        mini_server(dir.path().to_path_buf(), |_| {}).await;
+        mini_server(canonical_temp_path(&dir), |_| {}).await;
 
     let result = client.get("nonexistent.bin").await;
     assert!(result.is_err());
@@ -120,7 +128,7 @@ async fn test_rrq_with_blksize() {
     std::fs::write(dir.path().join("big.bin"), &test_data).unwrap();
 
     let (client, _addr, state, handle) =
-        mini_server(dir.path().to_path_buf(), |_| {}).await;
+        mini_server(canonical_temp_path(&dir), |_| {}).await;
 
     let opts = TftpOptions {
         blksize: Some(1024),
@@ -139,7 +147,7 @@ async fn test_rrq_sliding_window() {
     let test_data: Vec<u8> = (0..4096).map(|i| (i % 256) as u8).collect();
     std::fs::write(dir.path().join("win.bin"), &test_data).unwrap();
 
-    let (client, _addr, state, handle) = mini_server(dir.path().to_path_buf(), |c| {
+    let (client, _addr, state, handle) = mini_server(canonical_temp_path(&dir), |c| {
         c.protocol.max_windowsize = 4;
     })
     .await;
@@ -191,7 +199,7 @@ async fn test_rrq_path_traversal_rejected() {
     let dir = tempfile::tempdir().unwrap();
 
     let (client, _addr, state, handle) =
-        mini_server(dir.path().to_path_buf(), |_| {}).await;
+        mini_server(canonical_temp_path(&dir), |_| {}).await;
 
     let result = client.get("../etc/passwd").await;
     assert!(result.is_err());
@@ -215,7 +223,7 @@ async fn test_wrq_basic() {
     let dir = tempfile::tempdir().unwrap();
     let upload_data: Vec<u8> = (0..1500).map(|i| (i % 256) as u8).collect();
 
-    let (client, _addr, state, handle) = mini_server(dir.path().to_path_buf(), |c| {
+    let (client, _addr, state, handle) = mini_server(canonical_temp_path(&dir), |c| {
         c.protocol.allow_write = true;
     })
     .await;
@@ -235,7 +243,7 @@ async fn test_wrq_with_blksize_oack() {
     let dir = tempfile::tempdir().unwrap();
     let upload_data: Vec<u8> = (0..3072).map(|i| (i % 256) as u8).collect();
 
-    let (client, _addr, state, handle) = mini_server(dir.path().to_path_buf(), |c| {
+    let (client, _addr, state, handle) = mini_server(canonical_temp_path(&dir), |c| {
         c.protocol.allow_write = true;
     })
     .await;
@@ -261,7 +269,7 @@ async fn test_wrq_with_blksize_oack() {
 async fn test_wrq_denied() {
     let dir = tempfile::tempdir().unwrap();
 
-    let (client, _addr, state, handle) = mini_server(dir.path().to_path_buf(), |c| {
+    let (client, _addr, state, handle) = mini_server(canonical_temp_path(&dir), |c| {
         c.protocol.allow_write = false;
     })
     .await;
@@ -284,7 +292,7 @@ async fn test_rrq_duplicate_ack_no_retransmit() {
     std::fs::write(dir.path().join("dup.bin"), &test_data).unwrap();
 
     let (client, _addr, state, handle) =
-        mini_server(dir.path().to_path_buf(), |_| {}).await;
+        mini_server(canonical_temp_path(&dir), |_| {}).await;
 
     // Low-level: send RRQ, then manually handle ACKs with duplicates
     client.send_rrq("dup.bin", &[]).await.unwrap();
@@ -363,7 +371,7 @@ async fn test_retransmit_on_timeout() {
     let test_data: Vec<u8> = (0..1024).map(|i| (i % 256) as u8).collect();
     std::fs::write(dir.path().join("retry.bin"), &test_data).unwrap();
 
-    let (client, _addr, state, handle) = mini_server(dir.path().to_path_buf(), |c| {
+    let (client, _addr, state, handle) = mini_server(canonical_temp_path(&dir), |c| {
         c.protocol.default_timeout = 1;
         c.protocol.min_timeout = 1;
     })
@@ -450,7 +458,7 @@ async fn test_block_number_rollover() {
     let test_data: Vec<u8> = (0..file_size).map(|i| ((i * 7 + 13) % 256) as u8).collect();
     std::fs::write(dir.path().join("rollover.bin"), &test_data).unwrap();
 
-    let (client, _addr, state, handle) = mini_server(dir.path().to_path_buf(), |c| {
+    let (client, _addr, state, handle) = mini_server(canonical_temp_path(&dir), |c| {
         c.session.max_retries = 3;
     })
     .await;
@@ -467,7 +475,7 @@ async fn test_block_number_rollover() {
 #[tokio::test]
 async fn test_config_hot_reload() {
     let dir = tempfile::tempdir().unwrap();
-    let root = dir.path().to_path_buf();
+    let root = canonical_temp_path(&dir);
 
     // Create a test file
     let test_data: Vec<u8> = (0..2048).map(|i| (i % 256) as u8).collect();

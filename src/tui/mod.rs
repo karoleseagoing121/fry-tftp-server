@@ -25,8 +25,9 @@ pub async fn run(
     // Spawn the TFTP server in background
     let server_state = state.clone();
     tokio::spawn(async move {
-        if let Err(e) = crate::core::run_server(server_state).await {
+        if let Err(e) = crate::core::run_server(server_state.clone()).await {
             tracing::error!(error = %e, "server error");
+            server_state.set_server_state(crate::core::state::ServerState::Error);
         }
     });
 
@@ -45,6 +46,7 @@ pub async fn run(
 
         // Event loop
         loop {
+            tui_app.tick();
             terminal.draw(|f| tui_app.render(f))?;
 
             if event::poll(Duration::from_millis(250))? {

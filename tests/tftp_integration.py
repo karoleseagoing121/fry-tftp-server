@@ -306,8 +306,16 @@ def run_tests(host: str, port: int, tftp_root: str):
     # Test 2: Read exactly 1-block file (512 bytes — edge case)
     try:
         data, _ = client.get_file("oneblock.bin")
-        if len(data) == 512 and data == b'X' * 512:
-            r.ok("GET oneblock.bin (512b edge case)", f"{len(data)} bytes")
+        oneblock_path = os.path.join(tftp_root, "oneblock.bin")
+        if os.path.exists(oneblock_path):
+            with open(oneblock_path, "rb") as f:
+                expected_ob = f.read()
+            if data == expected_ob:
+                r.ok("GET oneblock.bin (512b edge case)", f"{len(data)} bytes")
+            else:
+                r.fail("GET oneblock.bin", f"content mismatch: got {len(data)} bytes, expected {len(expected_ob)}")
+        elif len(data) == 512:
+            r.ok("GET oneblock.bin (512b edge case)", f"{len(data)} bytes (no disk verify)")
         else:
             r.fail("GET oneblock.bin", f"got {len(data)} bytes, expected 512")
     except Exception as e:
@@ -600,7 +608,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fry TFTP Server Integration Tests")
     parser.add_argument("--host", default="127.0.0.1", help="Server address (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=69, help="Server port (default: 69)")
-    parser.add_argument("--root", default=r"C:\TFTP", help="TFTP root directory for verification")
+    # Platform-aware default root
+    if sys.platform == "win32":
+        default_root = r"C:\TFTP"
+    elif sys.platform == "darwin":
+        default_root = os.path.expanduser("~/Library/TFTP")
+    else:
+        default_root = "/srv/tftp"
+    parser.add_argument("--root", default=default_root, help="TFTP root directory for verification")
     args = parser.parse_args()
 
     print(f"\nConnecting to {args.host}:{args.port}...")

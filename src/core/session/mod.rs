@@ -220,6 +220,8 @@ async fn oack_handshake(
 
     let mut buf = vec![0u8; 512];
     let mut retries = 0u32;
+    let mut invalid_packets = 0u32;
+    let max_invalid = max_retries * 10; // hard cap on garbage packets
     loop {
         tokio::select! {
             _ = cancel.cancelled() => return Err(anyhow::anyhow!("cancelled")),
@@ -228,16 +230,22 @@ async fn oack_handshake(
                 match result {
                     Ok(Ok((len, from))) => {
                         if from != client_addr {
-                                let err = serialize_packet(&Packet::Error { code: ErrorCode::UnknownTransferId, message: "Unknown TID".to_string() });
-                                let _ = socket.send_to(&err, from).await;
-                                continue;
-                            }
+                            let err = serialize_packet(&Packet::Error { code: ErrorCode::UnknownTransferId, message: "Unknown TID".to_string() });
+                            let _ = socket.send_to(&err, from).await;
+                            continue;
+                        }
                         match parse_packet(&buf[..len]) {
                             Ok(Packet::Ack { block: 0 }) => return Ok(()),
                             Ok(Packet::Error { message, .. }) => {
                                 return Err(anyhow::anyhow!("client error: {}", message));
                             }
-                            _ => continue,
+                            _ => {
+                                invalid_packets += 1;
+                                if invalid_packets > max_invalid {
+                                    return Err(anyhow::anyhow!("OACK aborted: too many invalid packets"));
+                                }
+                                continue;
+                            }
                         }
                     }
                     Ok(Err(e)) => return Err(e.into()),
@@ -444,13 +452,15 @@ async fn run_read_session(
                                     let ack_abs = block_to_absolute(block, base_block);
 
                                     if ack_abs >= base_block && ack_abs <= window_end {
-                                        // Update bytes_sent
-                                        let newly_acked = ack_abs - base_block + 1;
+                                        // Update bytes_sent with actual payload sizes
+                                        let mut acked_bytes: u64 = 0;
                                         for blk in base_block..=ack_abs {
-                                            bytes_sent += get_block_payload(&file_data, blk, blksize).len() as u64;
+                                            let payload_len = get_block_payload(&file_data, blk, blksize).len() as u64;
+                                            bytes_sent += payload_len;
+                                            acked_bytes += payload_len;
                                         }
                                         state.total_bytes_tx.fetch_add(
-                                            newly_acked * blksize as u64,
+                                            acked_bytes,
                                             std::sync::atomic::Ordering::Relaxed,
                                         );
                                         state.update_session(session_id, bytes_sent, SessionStatus::Transferring).await;
@@ -503,9 +513,7 @@ async fn run_read_session(
 fn block_to_absolute(block_u16: u16, base_block: u64) -> u64 {
     let epoch = base_block / 65536;
     let candidate = epoch * 65536 + block_u16 as u64;
-    // Handle edge case: if candidate < base_block and the difference is huge,
-    // we might need the next epoch
-    if candidate + 65536 <= base_block + 65535 && candidate < base_block {
+    if candidate < base_block {
         candidate + 65536
     } else {
         candidate
@@ -537,7 +545,9 @@ pub async fn spawn_write_session(
         }
     };
 
-    if file_path.exists() && !config.filesystem.allow_overwrite {
+    // Existence check moved to atomic write (OpenOptions::create_new) in run_write_session
+    // to avoid TOCTOU race. We still do a quick check here for early rejection.
+    if !config.filesystem.allow_overwrite && file_path.exists() {
         let err_pkt = serialize_packet(&Packet::Error {
             code: ErrorCode::FileAlreadyExists,
             message: "File already exists".to_string(),
@@ -726,8 +736,24 @@ async fn run_write_session(
                                                 received_data
                                             };
 
-                                            // Write file
-                                            tokio::fs::write(file_path, &final_data).await?;
+                                            // Write file — use create_new to prevent TOCTOU race
+                                            // when allow_overwrite=false
+                                            let write_path = file_path.to_path_buf();
+                                            let allow_overwrite = config.filesystem.allow_overwrite;
+                                            tokio::task::spawn_blocking(move || {
+                                                use std::io::Write;
+                                                let mut opts = std::fs::OpenOptions::new();
+                                                opts.write(true);
+                                                if allow_overwrite {
+                                                    opts.create(true).truncate(true);
+                                                } else {
+                                                    opts.create_new(true);
+                                                }
+                                                let mut file = opts.open(&write_path)?;
+                                                file.write_all(&final_data)?;
+                                                file.sync_all()?;
+                                                std::io::Result::Ok(())
+                                            }).await??;
                                             state.buffer_pool.release(recv_buf);
                                             return Ok(());
                                         }

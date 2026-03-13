@@ -94,6 +94,7 @@ pub struct TftpTestClient {
     pub recv_timeout: Duration,
 }
 
+#[allow(dead_code)]
 impl TftpTestClient {
     /// Create a new test client targeting the given server address.
     pub async fn new(server_addr: SocketAddr) -> Self {

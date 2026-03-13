@@ -138,7 +138,7 @@ fn main() -> anyhow::Result<()> {
     if cli.gui {
         #[cfg(feature = "gui")]
         {
-            let log_buffer = init_logging_with_buffer(&config);
+            let log_buffer = init_logging_with_buffer(&config, true);
             let state = AppState::new(config);
             runtime.block_on(fry_tftp_server::gui::run(state, log_buffer))?;
         }
@@ -149,7 +149,7 @@ fn main() -> anyhow::Result<()> {
     } else if cli.tui {
         #[cfg(feature = "tui")]
         {
-            let log_buffer = init_logging_with_buffer(&config);
+            let log_buffer = init_logging_with_buffer(&config, false);
             let state = AppState::new(config);
             runtime.block_on(fry_tftp_server::tui::run(state, log_buffer))?;
         }
@@ -254,18 +254,15 @@ fn init_syslog_layer() -> Option<fry_tftp_server::platform::windows_eventlog::Ev
 }
 
 #[cfg(any(feature = "gui", feature = "tui"))]
-fn init_logging_with_buffer(config: &Config) -> fry_tftp_server::core::log_buffer::LogBuffer {
+/// Initialize logging with an in-app log buffer.
+/// When `console_output` is false (TUI mode), the console fmt layer is suppressed
+/// to prevent raw text from corrupting the terminal UI.
+fn init_logging_with_buffer(config: &Config, console_output: bool) -> fry_tftp_server::core::log_buffer::LogBuffer {
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::{fmt, EnvFilter};
 
     let filter =
         EnvFilter::try_new(&config.server.log_level).unwrap_or_else(|_| EnvFilter::new("info"));
-
-    let fmt_layer = fmt::layer()
-        .with_target(true)
-        .with_thread_ids(false)
-        .with_file(false)
-        .with_line_number(false);
 
     let (app_layer, log_buffer) = fry_tftp_server::core::log_buffer::AppLogLayer::new();
 
@@ -279,8 +276,8 @@ fn init_logging_with_buffer(config: &Config) -> fry_tftp_server::core::log_buffe
         );
     }
 
-    // Also write logs to file if configured
-    if !log_file_path.is_empty() {
+    // Optional file logging layer
+    let file_layer = if !log_file_path.is_empty() {
         let log_path = PathBuf::from(log_file_path);
         if let Some(parent) = log_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -294,27 +291,34 @@ fn init_logging_with_buffer(config: &Config) -> fry_tftp_server::core::log_buffe
         let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
         std::mem::forget(_guard);
 
-        let file_layer = fmt::layer()
+        Some(fmt::layer()
             .with_target(true)
             .with_thread_ids(false)
             .with_file(false)
             .with_line_number(false)
             .with_ansi(false)
-            .with_writer(non_blocking);
-
-        tracing_subscriber::registry()
-            .with(filter)
-            .with(fmt_layer)
-            .with(file_layer)
-            .with(app_layer)
-            .init();
+            .with_writer(non_blocking))
     } else {
-        tracing_subscriber::registry()
-            .with(filter)
-            .with(fmt_layer)
-            .with(app_layer)
-            .init();
-    }
+        None
+    };
+
+    // Console layer — only for GUI, NOT for TUI (would corrupt terminal)
+    let console_layer = if console_output {
+        Some(fmt::layer()
+            .with_target(true)
+            .with_thread_ids(false)
+            .with_file(false)
+            .with_line_number(false))
+    } else {
+        None
+    };
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(console_layer)
+        .with(file_layer)
+        .with(app_layer)
+        .init();
 
     log_buffer
 }

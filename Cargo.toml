@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Fry TFTP Server — cross-platform high-performance TFTP server"
-license = "MIT"
+license = "LicenseRef-Proprietary"
 repository = "https://github.com/2f-it/fry-tftp-server"
 homepage = "https://github.com/2f-it/fry-tftp-server"
 keywords = ["tftp", "server", "networking", "pxe"]
@@ -63,7 +63,7 @@ crossterm = { version = "0.28", optional = true }
 
 # === Platform-specific ===
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.29", features = ["signal", "fs", "net"] }
+nix = { version = "0.29", features = ["signal", "fs", "net", "resource"] }
 tracing-journald = "0.3"
 
 [target.'cfg(windows)'.dependencies]

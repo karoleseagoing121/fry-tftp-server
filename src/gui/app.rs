@@ -192,8 +192,9 @@ impl eframe::App for TftpApp {
                                     let new_config = crate::core::config::Config::load(None)
                                         .unwrap_or_default();
                                     state.reset_for_restart(new_config).await;
-                                    if let Err(e) = crate::core::run_server(state).await {
-                                        tracing::error!(error=%e, "server restart failed");
+                                    if let Err(e) = crate::core::run_server(state.clone()).await {
+                                        tracing::error!(error=%e, "server start failed");
+                                        state.set_server_state(ServerState::Error);
                                     }
                                 });
                             }
@@ -206,30 +207,67 @@ impl eframe::App for TftpApp {
 
         // Left sidebar
         egui::SidePanel::left("sidebar")
-            .default_width(140.0)
+            .default_width(160.0)
             .resizable(false)
             .frame(
                 egui::Frame::new()
                     .fill(self.theme.sidebar_bg())
-                    .inner_margin(8.0),
+                    .inner_margin(egui::Margin::symmetric(8, 8)),
             )
             .show(ctx, |ui| {
                 ui.add_space(8.0);
 
-                for tab in Tab::MAIN {
-                    let selected = *tab == self.current_tab;
-                    if ui.selectable_label(selected, tab.label()).clicked() {
-                        self.current_tab = *tab;
+                let draw_sidebar_button = |ui: &mut egui::Ui, tab: &Tab, current: &mut Tab, theme: &Theme| {
+                    let selected = *tab == *current;
+
+                    // Reserve space and check hover before drawing
+                    let desired_size = egui::vec2(ui.available_width(), 32.0);
+                    let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
+
+                    let hovered = response.hovered();
+                    let bg = if selected {
+                        theme.sidebar_selected_bg()
+                    } else if hovered {
+                        theme.sidebar_hover_bg()
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    };
+                    let text_color = if selected || hovered {
+                        theme.sidebar_selected_text()
+                    } else {
+                        theme.sidebar_text()
+                    };
+
+                    // Draw rounded background
+                    ui.painter().rect_filled(rect, egui::CornerRadius::same(8), bg);
+
+                    // Draw label with icon
+                    let label_text = format!("{} {}", tab.icon(), tab.label());
+                    let galley = ui.painter().layout_no_wrap(
+                        label_text,
+                        egui::FontId::proportional(14.0),
+                        text_color,
+                    );
+                    let text_pos = egui::pos2(
+                        rect.left() + 10.0,
+                        rect.center().y - galley.size().y / 2.0,
+                    );
+                    ui.painter().galley(text_pos, galley, text_color);
+
+                    if response.clicked() {
+                        *current = *tab;
                     }
+                };
+
+                for tab in Tab::MAIN {
+                    draw_sidebar_button(ui, tab, &mut self.current_tab, &self.theme);
+                    ui.add_space(2.0);
                 }
 
                 // Help pinned at bottom
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     ui.add_space(4.0);
-                    let selected = self.current_tab == Tab::Help;
-                    if ui.selectable_label(selected, "Help").clicked() {
-                        self.current_tab = Tab::Help;
-                    }
+                    draw_sidebar_button(ui, &Tab::Help, &mut self.current_tab, &self.theme);
                 });
             });
 

@@ -188,7 +188,14 @@ impl FileHandle {
         if file_size >= MMAP_THRESHOLD {
             let file = std::fs::File::open(path)?;
             // SAFETY: The file is opened read-only and the mapping is immutable.
+            // We verify the mapped size matches the expected size to detect
+            // truncation between metadata read and mmap creation.
             let mmap = unsafe { Mmap::map(&file)? };
+            if mmap.len() as u64 != file_size {
+                // File was modified between metadata and mmap — fall back to buffered read
+                let data = std::fs::read(path)?;
+                return Ok(FileHandle::Buffered(data));
+            }
             Ok(FileHandle::Mapped(mmap))
         } else {
             let data = std::fs::read(path)?;

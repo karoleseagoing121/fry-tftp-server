@@ -222,6 +222,6 @@ fn truncate_single_file(path: &PathBuf, max_lines: usize) {
         .collect();
 
     if let Err(e) = std::fs::write(path, truncated) {
-        eprintln!("[log] failed to truncate {}: {}", path.display(), e);
+        tracing::warn!(path=%path.display(), error=%e, "failed to truncate log file");
     }
 }
