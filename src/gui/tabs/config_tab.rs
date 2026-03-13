@@ -2,6 +2,7 @@ use egui::Ui;
 use std::sync::Arc;
 
 use crate::core::config::Config;
+use crate::core::i18n::I18n;
 use crate::core::state::AppState;
 
 pub struct ConfigState {
@@ -151,37 +152,35 @@ impl ConfigState {
     }
 }
 
-pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
-    ui.heading("Configuration");
+pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState, i18n: &I18n) {
+    ui.heading(i18n.t("configuration"));
 
     egui::ScrollArea::vertical().show(ui, |ui| {
-        ui.collapsing("Server", |ui| {
+        ui.collapsing(i18n.t("server"), |ui| {
             ui.label(
-                egui::RichText::new(
-                    "* Port, Bind Address and IP Version require restart to take effect",
-                )
-                .small()
-                .weak(),
+                egui::RichText::new(i18n.t("port_restart_note"))
+                    .small()
+                    .weak(),
             );
             egui::Grid::new("server_cfg").show(ui, |ui| {
-                ui.label("Port *:");
+                ui.label(i18n.t("port"));
                 if ui.text_edit_singleline(&mut cs.port).changed() {
                     cs.dirty = true;
                 }
                 ui.end_row();
 
-                ui.label("Bind Address *:");
+                ui.label(i18n.t("bind_address"));
                 if ui.text_edit_singleline(&mut cs.bind_address).changed() {
                     cs.dirty = true;
                 }
                 ui.end_row();
 
-                ui.label("Root Directory:");
+                ui.label(i18n.t("root_directory"));
                 ui.horizontal(|ui| {
                     if ui.text_edit_singleline(&mut cs.root).changed() {
                         cs.dirty = true;
                     }
-                    if ui.button("Browse...").clicked() {
+                    if ui.button(i18n.t("browse")).clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_folder() {
                             cs.root = path.to_string_lossy().to_string();
                             cs.dirty = true;
@@ -190,24 +189,36 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
                 });
                 ui.end_row();
 
-                ui.label("IP Version *:");
+                ui.label(i18n.t("ip_version"));
                 egui::ComboBox::from_id_salt("cfg_ip_version")
                     .selected_text(&cs.ip_version)
                     .show_ui(ui, |ui| {
                         if ui
-                            .selectable_value(&mut cs.ip_version, "dual".to_string(), "Dual Stack")
+                            .selectable_value(
+                                &mut cs.ip_version,
+                                "dual".to_string(),
+                                i18n.t("dual_stack"),
+                            )
                             .changed()
                         {
                             cs.dirty = true;
                         }
                         if ui
-                            .selectable_value(&mut cs.ip_version, "v4".to_string(), "IPv4 Only")
+                            .selectable_value(
+                                &mut cs.ip_version,
+                                "v4".to_string(),
+                                i18n.t("ipv4_only"),
+                            )
                             .changed()
                         {
                             cs.dirty = true;
                         }
                         if ui
-                            .selectable_value(&mut cs.ip_version, "v6".to_string(), "IPv6 Only")
+                            .selectable_value(
+                                &mut cs.ip_version,
+                                "v6".to_string(),
+                                i18n.t("ipv6_only"),
+                            )
                             .changed()
                         {
                             cs.dirty = true;
@@ -215,7 +226,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
                     });
                 ui.end_row();
 
-                ui.label("Log Level:");
+                ui.label(i18n.t("log_level"));
                 egui::ComboBox::from_id_salt("cfg_log_level")
                     .selected_text(&cs.log_level)
                     .show_ui(ui, |ui| {
@@ -230,31 +241,34 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
                     });
                 ui.end_row();
 
-                ui.label("Max Log Lines:");
+                ui.label(i18n.t("max_log_lines"));
                 ui.horizontal(|ui| {
                     if ui.text_edit_singleline(&mut cs.max_log_lines).changed() {
                         cs.dirty = true;
                     }
-                    ui.weak("0 = unlimited");
+                    ui.weak(i18n.t("unlimited"));
                 });
                 ui.end_row();
             });
         });
 
-        ui.collapsing("Protocol", |ui| {
+        ui.collapsing(i18n.t("protocol"), |ui| {
             egui::Grid::new("protocol_cfg").show(ui, |ui| {
-                ui.label("Allow Write:");
+                ui.label(i18n.t("allow_write"));
                 if ui.checkbox(&mut cs.allow_write, "").changed() {
                     cs.dirty = true;
                 }
                 ui.end_row();
 
                 for (label, value) in [
-                    ("Default Blksize:", &mut cs.default_blksize as &mut String),
-                    ("Max Blksize:", &mut cs.max_blksize),
-                    ("Default Windowsize:", &mut cs.default_windowsize),
-                    ("Max Windowsize:", &mut cs.max_windowsize),
-                    ("Default Timeout:", &mut cs.default_timeout),
+                    (
+                        i18n.t("default_blksize"),
+                        &mut cs.default_blksize as &mut String,
+                    ),
+                    (i18n.t("max_blksize"), &mut cs.max_blksize),
+                    (i18n.t("default_windowsize"), &mut cs.default_windowsize),
+                    (i18n.t("max_windowsize"), &mut cs.max_windowsize),
+                    (i18n.t("default_timeout"), &mut cs.default_timeout),
                 ] {
                     ui.label(label);
                     if ui.text_edit_singleline(value).changed() {
@@ -265,12 +279,12 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
             });
         });
 
-        ui.collapsing("Session", |ui| {
+        ui.collapsing(i18n.t("session"), |ui| {
             egui::Grid::new("session_cfg").show(ui, |ui| {
                 for (label, value) in [
-                    ("Max Sessions:", &mut cs.max_sessions as &mut String),
-                    ("Max Retries:", &mut cs.max_retries),
-                    ("Session Timeout (s):", &mut cs.session_timeout),
+                    (i18n.t("max_sessions"), &mut cs.max_sessions as &mut String),
+                    (i18n.t("max_retries"), &mut cs.max_retries),
+                    (i18n.t("session_timeout"), &mut cs.session_timeout),
                 ] {
                     ui.label(label);
                     if ui.text_edit_singleline(value).changed() {
@@ -279,7 +293,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
                     ui.end_row();
                 }
 
-                ui.label("Exponential Backoff:");
+                ui.label(i18n.t("exponential_backoff"));
                 if ui.checkbox(&mut cs.exponential_backoff, "").changed() {
                     cs.dirty = true;
                 }
@@ -287,15 +301,15 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
             });
         });
 
-        ui.collapsing("Security", |ui| {
+        ui.collapsing(i18n.t("security"), |ui| {
             egui::Grid::new("security_cfg").show(ui, |ui| {
                 for (label, value) in [
                     (
-                        "Per-IP Max Sessions:",
+                        i18n.t("per_ip_max_sessions"),
                         &mut cs.per_ip_max_sessions as &mut String,
                     ),
-                    ("Per-IP Rate Limit:", &mut cs.per_ip_rate_limit),
-                    ("Rate Limit Window (s):", &mut cs.rate_limit_window),
+                    (i18n.t("per_ip_rate_limit"), &mut cs.per_ip_rate_limit),
+                    (i18n.t("rate_limit_window"), &mut cs.rate_limit_window),
                 ] {
                     ui.label(label);
                     if ui.text_edit_singleline(value).changed() {
@@ -306,9 +320,9 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
             });
         });
 
-        ui.collapsing("Dashboard", |ui| {
+        ui.collapsing(i18n.t("dashboard_section"), |ui| {
             egui::Grid::new("dashboard_cfg").show(ui, |ui| {
-                ui.label("Show Bandwidth Chart:");
+                ui.label(i18n.t("show_bandwidth_chart"));
                 if ui.checkbox(&mut cs.show_bandwidth_chart, "").changed() {
                     cs.dirty = true;
                 }
@@ -316,9 +330,9 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
             });
         });
 
-        ui.collapsing("Language", |ui| {
+        ui.collapsing(i18n.t("language"), |ui| {
             egui::Grid::new("lang_cfg").show(ui, |ui| {
-                ui.label("Interface Language:");
+                ui.label(i18n.t("language_label"));
                 let prev = cs.language.clone();
                 egui::ComboBox::from_id_salt("lang_combo")
                     .selected_text(crate::core::i18n::Lang::from_str(&cs.language).name())
@@ -338,18 +352,21 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
             });
         });
 
-        ui.collapsing("Filesystem", |ui| {
+        ui.collapsing(i18n.t("filesystem"), |ui| {
             egui::Grid::new("fs_cfg").show(ui, |ui| {
-                ui.label("Max File Size:");
+                ui.label(i18n.t("max_file_size"));
                 if ui.text_edit_singleline(&mut cs.max_file_size).changed() {
                     cs.dirty = true;
                 }
                 ui.end_row();
 
                 for (label, value) in [
-                    ("Allow Overwrite:", &mut cs.allow_overwrite as &mut bool),
-                    ("Create Directories:", &mut cs.create_dirs),
-                    ("Follow Symlinks:", &mut cs.follow_symlinks),
+                    (
+                        i18n.t("allow_overwrite"),
+                        &mut cs.allow_overwrite as &mut bool,
+                    ),
+                    (i18n.t("create_directories"), &mut cs.create_dirs),
+                    (i18n.t("follow_symlinks"), &mut cs.follow_symlinks),
                 ] {
                     ui.label(label);
                     if ui.checkbox(value, "").changed() {
@@ -364,7 +381,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
     ui.separator();
 
     ui.horizontal(|ui| {
-        let apply_btn = ui.add_enabled(cs.dirty, egui::Button::new("Apply"));
+        let apply_btn = ui.add_enabled(cs.dirty, egui::Button::new(i18n.t("apply")));
         if apply_btn.clicked() {
             let old_config = state.config();
             let mut new_config = (*old_config).clone();
@@ -380,7 +397,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
                     cs.dirty = false;
 
                     let restart_note = if needs_restart {
-                        " (Port/Bind/IP changes require server restart)"
+                        i18n.t("restart_note")
                     } else {
                         ""
                     };
@@ -405,18 +422,18 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
             }
         }
 
-        if ui.button("Reset to Current").clicked() {
+        if ui.button(i18n.t("reset_current")).clicked() {
             *cs = ConfigState::from_config(&state.config());
             cs.status_message = "Reset to current running config".to_string();
         }
 
-        if ui.button("Reset to Defaults").clicked() {
+        if ui.button(i18n.t("reset_defaults")).clicked() {
             *cs = ConfigState::from_config(&Config::default());
             cs.dirty = true;
             cs.status_message = "Reset to defaults (click Apply to activate)".to_string();
         }
 
-        if ui.button("Import TOML...").clicked() {
+        if ui.button(i18n.t("import_toml")).clicked() {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("TOML", &["toml"])
                 .pick_file()
@@ -442,7 +459,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
             }
         }
 
-        if ui.button("Export TOML...").clicked() {
+        if ui.button(i18n.t("export_toml")).clicked() {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("TOML", &["toml"])
                 .save_file()

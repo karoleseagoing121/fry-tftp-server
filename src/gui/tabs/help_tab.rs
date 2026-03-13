@@ -1,5 +1,7 @@
 use egui::Ui;
 
+use crate::core::i18n::I18n;
+
 pub struct HelpState {
     pub show_about: bool,
 }
@@ -16,23 +18,27 @@ impl HelpState {
     }
 }
 
-pub fn draw(ui: &mut Ui, _help: &mut HelpState) {
+pub fn draw(ui: &mut Ui, _help: &mut HelpState, i18n: &I18n) {
     egui::ScrollArea::vertical().show(ui, |ui| {
-        ui.heading("Fry TFTP Server");
+        ui.heading(i18n.t("help_title"));
         ui.add_space(4.0);
         ui.label(
-            egui::RichText::new("High-performance, cross-platform TFTP server")
+            egui::RichText::new(i18n.t("help_subtitle"))
                 .size(14.0)
                 .italics(),
         );
-        ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
+        ui.label(format!(
+            "{} {}",
+            i18n.t("version"),
+            env!("CARGO_PKG_VERSION")
+        ));
 
         ui.add_space(12.0);
         ui.separator();
         ui.add_space(8.0);
 
         // ── Supported RFCs ──
-        ui.heading("Supported RFCs");
+        ui.heading(i18n.t("supported_rfcs"));
         ui.add_space(4.0);
 
         egui::Grid::new("rfc_grid")
@@ -77,7 +83,7 @@ pub fn draw(ui: &mut Ui, _help: &mut HelpState) {
         ui.add_space(8.0);
 
         // ── Features ──
-        ui.heading("Features");
+        ui.heading(i18n.t("features"));
         ui.add_space(4.0);
 
         let features = [

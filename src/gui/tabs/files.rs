@@ -2,6 +2,7 @@ use egui::Ui;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::core::i18n::I18n;
 use crate::core::state::AppState;
 
 pub struct FilesState {
@@ -64,13 +65,13 @@ fn format_size(size: u64) -> String {
     }
 }
 
-pub fn draw(ui: &mut Ui, _state: &Arc<AppState>, files: &mut FilesState) {
+pub fn draw(ui: &mut Ui, _state: &Arc<AppState>, files: &mut FilesState, i18n: &I18n) {
     ui.horizontal(|ui| {
-        ui.heading("Files");
-        if ui.button("Refresh").clicked() {
+        ui.heading(i18n.t("tab_files"));
+        if ui.button(i18n.t("refresh")).clicked() {
             files.refresh();
         }
-        if ui.button("Change Root...").clicked() {
+        if ui.button(i18n.t("change_root")).clicked() {
             if let Some(path) = rfd::FileDialog::new()
                 .set_directory(&files.current_root)
                 .pick_folder()
@@ -79,7 +80,7 @@ pub fn draw(ui: &mut Ui, _state: &Arc<AppState>, files: &mut FilesState) {
                 files.refresh();
             }
         }
-        if files.current_root.parent().is_some() && ui.button("Up").clicked() {
+        if files.current_root.parent().is_some() && ui.button(i18n.t("up")).clicked() {
             if let Some(parent) = files.current_root.parent() {
                 files.current_root = parent.to_path_buf();
                 files.needs_refresh = true;
@@ -100,9 +101,9 @@ pub fn draw(ui: &mut Ui, _state: &Arc<AppState>, files: &mut FilesState) {
             .striped(true)
             .min_col_width(100.0)
             .show(ui, |ui| {
-                ui.strong("Name");
-                ui.strong("Size");
-                ui.strong("Type");
+                ui.strong(i18n.t("name"));
+                ui.strong(i18n.t("size"));
+                ui.strong(i18n.t("type"));
                 ui.end_row();
 
                 for (i, entry) in files.entries.iter().enumerate() {
@@ -124,10 +125,10 @@ pub fn draw(ui: &mut Ui, _state: &Arc<AppState>, files: &mut FilesState) {
 
                     if entry.is_dir {
                         ui.label("-");
-                        ui.label("Directory");
+                        ui.label(i18n.t("directory"));
                     } else {
                         ui.label(format_size(entry.size));
-                        ui.label("File");
+                        ui.label(i18n.t("file"));
                     }
                     ui.end_row();
                 }

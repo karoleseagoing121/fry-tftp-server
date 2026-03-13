@@ -1,5 +1,6 @@
 use egui::Ui;
 
+use crate::core::i18n::I18n;
 use crate::core::state::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -154,26 +155,34 @@ fn export_csv(records: &[&TransferRecord]) {
     }
 }
 
-pub fn draw(ui: &mut Ui, history: &[TransferRecord], transfers: &mut TransfersState) {
-    ui.heading("Transfer History");
+pub fn draw(ui: &mut Ui, history: &[TransferRecord], transfers: &mut TransfersState, i18n: &I18n) {
+    ui.heading(i18n.t("transfer_history"));
 
     // Filters + Export
     ui.horizontal(|ui| {
         ui.label("IP:");
         ui.add(egui::TextEdit::singleline(&mut transfers.filter_ip).desired_width(120.0));
-        ui.label("File:");
+        ui.label(i18n.t("file"));
         ui.add(egui::TextEdit::singleline(&mut transfers.filter_filename).desired_width(120.0));
-        ui.label("Status:");
+        ui.label(i18n.t("status_label"));
         egui::ComboBox::from_id_salt("status_filter")
             .selected_text(&transfers.filter_status)
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut transfers.filter_status, "all".to_string(), "All");
+                ui.selectable_value(
+                    &mut transfers.filter_status,
+                    "all".to_string(),
+                    i18n.t("all"),
+                );
                 ui.selectable_value(
                     &mut transfers.filter_status,
                     "completed".to_string(),
-                    "Completed",
+                    i18n.t("completed"),
                 );
-                ui.selectable_value(&mut transfers.filter_status, "failed".to_string(), "Failed");
+                ui.selectable_value(
+                    &mut transfers.filter_status,
+                    "failed".to_string(),
+                    i18n.t("failed"),
+                );
             });
     });
 
@@ -278,10 +287,10 @@ pub fn draw(ui: &mut Ui, history: &[TransferRecord], transfers: &mut TransfersSt
 
     ui.horizontal(|ui| {
         ui.label(format!("{} records", filtered.len()));
-        if ui.button("Export CSV").clicked() {
+        if ui.button(i18n.t("export_csv")).clicked() {
             export_csv(&filtered);
         }
-        if ui.button("Export JSON").clicked() {
+        if ui.button(i18n.t("export_json")).clicked() {
             export_json(&filtered);
         }
     });
@@ -292,14 +301,14 @@ pub fn draw(ui: &mut Ui, history: &[TransferRecord], transfers: &mut TransfersSt
             .min_col_width(80.0)
             .show(ui, |ui| {
                 let cols = [
-                    ("Client", SortColumn::Client),
-                    ("File", SortColumn::File),
-                    ("Dir", SortColumn::Direction),
-                    ("Size", SortColumn::Size),
-                    ("Duration", SortColumn::Duration),
-                    ("Speed", SortColumn::Speed),
-                    ("Status", SortColumn::Status),
-                    ("Retransmits", SortColumn::Retransmits),
+                    (i18n.t("client"), SortColumn::Client),
+                    (i18n.t("file"), SortColumn::File),
+                    (i18n.t("direction"), SortColumn::Direction),
+                    (i18n.t("size"), SortColumn::Size),
+                    (i18n.t("duration"), SortColumn::Duration),
+                    (i18n.t("speed"), SortColumn::Speed),
+                    (i18n.t("status_label"), SortColumn::Status),
+                    (i18n.t("retransmits"), SortColumn::Retransmits),
                 ];
                 for (label, col) in &cols {
                     if sort_header(
@@ -323,16 +332,16 @@ pub fn draw(ui: &mut Ui, history: &[TransferRecord], transfers: &mut TransfersSt
                     ui.label(record.client_addr.to_string());
                     ui.label(&record.filename);
                     ui.label(match record.direction {
-                        Direction::Read => "Download",
-                        Direction::Write => "Upload",
+                        Direction::Read => i18n.t("download"),
+                        Direction::Write => i18n.t("upload"),
                     });
                     ui.label(format_bytes(record.bytes_transferred));
                     ui.label(format!("{}ms", record.duration_ms));
                     ui.label(format!("{:.2} Mbps", record.speed_mbps));
                     ui.label(match record.status {
-                        SessionStatus::Completed => "OK",
-                        SessionStatus::Failed => "FAIL",
-                        SessionStatus::Cancelled => "Cancelled",
+                        SessionStatus::Completed => i18n.t("ok"),
+                        SessionStatus::Failed => i18n.t("fail"),
+                        SessionStatus::Cancelled => i18n.t("cancelled"),
                         _ => "?",
                     });
                     ui.label(record.retransmits.to_string());

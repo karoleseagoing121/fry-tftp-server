@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::core::i18n::I18n;
 use crate::core::state::*;
 use crate::gui::theme::Theme;
 
@@ -114,6 +115,7 @@ pub fn draw(
     dashboard: &mut DashboardState,
     theme: &Theme,
     active_sessions: &[SessionInfo],
+    i18n: &I18n,
 ) {
     dashboard.update(state);
 
@@ -131,7 +133,7 @@ pub fn draw(
             .inner_margin(inner_margin)
             .show(ui, |ui| {
                 ui.set_width(card_width);
-                ui.label(RichText::new("Active Sessions").small());
+                ui.label(RichText::new(i18n.t("active_sessions")).small());
                 ui.label(
                     RichText::new(active_sessions.len().to_string())
                         .size(28.0)
@@ -146,7 +148,7 @@ pub fn draw(
             .inner_margin(inner_margin)
             .show(ui, |ui| {
                 ui.set_width(card_width);
-                ui.label(RichText::new("TX Rate").small());
+                ui.label(RichText::new(i18n.t("tx_rate")).small());
                 ui.label(
                     RichText::new(format_bytes_rate(dashboard.current_tx_rate))
                         .size(28.0)
@@ -161,7 +163,7 @@ pub fn draw(
             .inner_margin(inner_margin)
             .show(ui, |ui| {
                 ui.set_width(card_width);
-                ui.label(RichText::new("RX Rate").small());
+                ui.label(RichText::new(i18n.t("rx_rate")).small());
                 ui.label(
                     RichText::new(format_bytes_rate(dashboard.current_rx_rate))
                         .size(28.0)
@@ -173,32 +175,32 @@ pub fn draw(
     ui.add_space(12.0);
 
     // Active transfers table
-    ui.heading("Active Transfers");
+    ui.heading(i18n.t("active_transfers"));
 
     if active_sessions.is_empty() {
-        ui.label("No active transfers");
+        ui.label(i18n.t("no_active_transfers"));
     } else {
         egui::ScrollArea::horizontal().show(ui, |ui| {
             egui::Grid::new("active_transfers")
                 .striped(true)
                 .min_col_width(60.0)
                 .show(ui, |ui| {
-                    ui.strong("Client");
-                    ui.strong("File");
-                    ui.strong("Dir");
-                    ui.strong("Progress");
-                    ui.strong("Speed");
-                    ui.strong("Duration");
-                    ui.strong("Blksize");
-                    ui.strong("Window");
+                    ui.strong(i18n.t("client"));
+                    ui.strong(i18n.t("file"));
+                    ui.strong(i18n.t("direction"));
+                    ui.strong(i18n.t("progress"));
+                    ui.strong(i18n.t("speed"));
+                    ui.strong(i18n.t("duration"));
+                    ui.strong(i18n.t("blksize"));
+                    ui.strong(i18n.t("window"));
                     ui.end_row();
 
                     for session in active_sessions {
                         ui.label(session.client_addr.to_string());
                         ui.label(&session.filename);
                         ui.label(match session.direction {
-                            Direction::Read => "Download",
-                            Direction::Write => "Upload",
+                            Direction::Read => i18n.t("download"),
+                            Direction::Write => i18n.t("upload"),
                         });
 
                         if let Some(tsize) = session.tsize {
@@ -236,7 +238,7 @@ pub fn draw(
     let config = state.config();
     if config.gui.show_bandwidth_chart {
         ui.add_space(12.0);
-        ui.heading("Bandwidth");
+        ui.heading(i18n.t("bandwidth"));
 
         let tx_points: PlotPoints = dashboard
             .samples
@@ -250,10 +252,10 @@ pub fn draw(
             .collect();
 
         let tx_line = Line::new(tx_points)
-            .name("TX (MB/s)")
+            .name(i18n.t("tx_mbps"))
             .color(Color32::from_rgb(0x42, 0xa5, 0xf5));
         let rx_line = Line::new(rx_points)
-            .name("RX (MB/s)")
+            .name(i18n.t("rx_mbps"))
             .color(Color32::from_rgb(0x66, 0xbb, 0x6a));
 
         let now_secs = dashboard.start_time.elapsed().as_secs_f64();

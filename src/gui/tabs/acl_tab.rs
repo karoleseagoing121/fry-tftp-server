@@ -2,6 +2,7 @@ use egui::Ui;
 use std::sync::Arc;
 
 use crate::core::config::{AclConfig, AclRuleConfig};
+use crate::core::i18n::I18n;
 use crate::core::state::AppState;
 
 pub struct AclState {
@@ -135,6 +136,7 @@ fn draw_rule_row(
     rule: &mut AclRuleEdit,
     cw: &ColWidths,
     dirty: &mut bool,
+    i18n: &I18n,
 ) -> (Option<(usize, usize)>, bool) {
     let mut swap: Option<(usize, usize)> = None;
     let mut remove = false;
@@ -153,10 +155,10 @@ fn draw_rule_row(
                 .show_ui(ui, |ui| {
                     let mut c = false;
                     c |= ui
-                        .selectable_value(&mut rule.action, "allow".to_string(), "Allow")
+                        .selectable_value(&mut rule.action, "allow".to_string(), i18n.t("allow"))
                         .changed();
                     c |= ui
-                        .selectable_value(&mut rule.action, "deny".to_string(), "Deny")
+                        .selectable_value(&mut rule.action, "deny".to_string(), i18n.t("deny"))
                         .changed();
                     c
                 })
@@ -187,7 +189,7 @@ fn draw_rule_row(
                 *dirty = true;
             }
             if !valid && !rule.source.is_empty() {
-                resp.on_hover_text("Invalid CIDR notation");
+                resp.on_hover_text(i18n.t("invalid_cidr"));
             }
         });
 
@@ -261,26 +263,26 @@ fn draw_rule_row(
     (swap, remove)
 }
 
-pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
+pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState, i18n: &I18n) {
     let total_width = ui.available_width();
     let cw = ColWidths::compute(total_width);
 
-    ui.heading("Access Control List");
+    ui.heading(i18n.t("access_control_list"));
 
     ui.horizontal(|ui| {
-        ui.label("Mode:");
+        ui.label(i18n.t("mode"));
         let changed = egui::ComboBox::from_id_salt("acl_mode")
             .selected_text(&acl.mode)
             .show_ui(ui, |ui| {
                 let mut c = false;
                 c |= ui
-                    .selectable_value(&mut acl.mode, "disabled".to_string(), "Disabled")
+                    .selectable_value(&mut acl.mode, "disabled".to_string(), i18n.t("disabled"))
                     .changed();
                 c |= ui
-                    .selectable_value(&mut acl.mode, "whitelist".to_string(), "Whitelist")
+                    .selectable_value(&mut acl.mode, "whitelist".to_string(), i18n.t("whitelist"))
                     .changed();
                 c |= ui
-                    .selectable_value(&mut acl.mode, "blacklist".to_string(), "Blacklist")
+                    .selectable_value(&mut acl.mode, "blacklist".to_string(), i18n.t("blacklist"))
                     .changed();
                 c
             })
@@ -309,20 +311,15 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
                 ui.add_space(24.0);
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        egui::RichText::new("No ACL rules configured")
+                        egui::RichText::new(i18n.t("no_acl_rules"))
                             .size(16.0)
                             .color(egui::Color32::from_rgb(0x9e, 0x9e, 0x9e)),
                     );
                     ui.add_space(8.0);
                     ui.label(
-                        egui::RichText::new(
-                            "It is recommended to add ACL rules if the server is \
-                             exposed to the network.\nUse whitelist mode to allow \
-                             only trusted IP ranges, or blacklist mode to block \
-                             specific addresses.",
-                        )
-                        .size(13.0)
-                        .color(egui::Color32::from_rgb(0x75, 0x75, 0x75)),
+                        egui::RichText::new(i18n.t("acl_recommendation"))
+                            .size(13.0)
+                            .color(egui::Color32::from_rgb(0x75, 0x75, 0x75)),
                     );
                 });
             } else {
@@ -332,16 +329,16 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
                         ui.strong("#");
                     });
                     ui.allocate_ui(egui::vec2(cw.action, 16.0), |ui| {
-                        ui.strong("Action");
+                        ui.strong(i18n.t("action"));
                     });
                     ui.allocate_ui(egui::vec2(cw.source, 16.0), |ui| {
-                        ui.strong("Source (CIDR)");
+                        ui.strong(i18n.t("source_cidr"));
                     });
                     ui.allocate_ui(egui::vec2(cw.ops, 16.0), |ui| {
-                        ui.strong("Operations");
+                        ui.strong(i18n.t("operations"));
                     });
                     ui.allocate_ui(egui::vec2(cw.comment, 16.0), |ui| {
-                        ui.strong("Comment");
+                        ui.strong(i18n.t("comment"));
                     });
                     ui.allocate_ui(egui::vec2(cw.enabled, 16.0), |ui| {
                         ui.strong("On");
@@ -367,8 +364,15 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
                         );
                     }
 
-                    let (swap, remove) =
-                        draw_rule_row(ui, i, rule_count, &mut acl.rules[i], &cw, &mut acl.dirty);
+                    let (swap, remove) = draw_rule_row(
+                        ui,
+                        i,
+                        rule_count,
+                        &mut acl.rules[i],
+                        &cw,
+                        &mut acl.dirty,
+                        i18n,
+                    );
                     if let Some(s) = swap {
                         all_swaps.push(s);
                     }
@@ -395,14 +399,14 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
 
     // Add new rule
     ui.horizontal(|ui| {
-        ui.label("Add:");
+        ui.label(i18n.t("add"));
 
         egui::ComboBox::from_id_salt("new_acl_action")
             .selected_text(&acl.new_action)
             .width(cw.action - 12.0)
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut acl.new_action, "allow".to_string(), "Allow");
-                ui.selectable_value(&mut acl.new_action, "deny".to_string(), "Deny");
+                ui.selectable_value(&mut acl.new_action, "allow".to_string(), i18n.t("allow"));
+                ui.selectable_value(&mut acl.new_action, "deny".to_string(), i18n.t("deny"));
             });
 
         let new_valid = is_valid_cidr_input(&acl.new_source);
@@ -420,7 +424,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
                 .text_color(new_color),
         );
         if !new_valid && !acl.new_source.is_empty() {
-            resp.on_hover_text("Invalid CIDR notation");
+            resp.on_hover_text(i18n.t("invalid_cidr"));
         }
 
         egui::ComboBox::from_id_salt("new_acl_ops")
@@ -440,7 +444,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
 
         let can_add = !acl.new_source.is_empty() && new_valid;
         if ui
-            .add_enabled(can_add, egui::Button::new("Add Rule"))
+            .add_enabled(can_add, egui::Button::new(i18n.t("add_rule")))
             .clicked()
         {
             acl.rules.push(AclRuleEdit {
@@ -459,7 +463,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
     ui.add_space(4.0);
 
     ui.horizontal(|ui| {
-        let apply = ui.add_enabled(acl.dirty, egui::Button::new("Apply"));
+        let apply = ui.add_enabled(acl.dirty, egui::Button::new(i18n.t("apply")));
         if apply.clicked() {
             let new_acl_config = acl.to_config();
             let mut config = (*state.config()).clone();
@@ -476,7 +480,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState) {
                 }
             }
         }
-        if ui.button("Reset").clicked() {
+        if ui.button(i18n.t("reset")).clicked() {
             *acl = AclState::from_config(&state.config().acl);
         }
 

@@ -1,5 +1,6 @@
 use egui::{RichText, ScrollArea, Ui};
 
+use crate::core::i18n::I18n;
 use crate::gui::log_layer::{LogBuffer, LogEntry};
 use crate::gui::theme::Theme;
 
@@ -75,13 +76,13 @@ fn filtered_text(entries: &[LogEntry], filter_level: tracing::Level, filter_text
         .join("\n")
 }
 
-pub fn draw(ui: &mut Ui, log_state: &mut LogState, buffer: &LogBuffer, theme: &Theme) {
+pub fn draw(ui: &mut Ui, log_state: &mut LogState, buffer: &LogBuffer, theme: &Theme, i18n: &I18n) {
     log_state.update(buffer);
 
     ui.horizontal(|ui| {
-        ui.heading("Log");
+        ui.heading(i18n.t("tab_log"));
 
-        ui.label("Level:");
+        ui.label(i18n.t("level"));
         egui::ComboBox::from_id_salt("log_level_filter")
             .selected_text(format!("{}", log_state.filter_level))
             .show_ui(ui, |ui| {
@@ -92,17 +93,17 @@ pub fn draw(ui: &mut Ui, log_state: &mut LogState, buffer: &LogBuffer, theme: &T
                 ui.selectable_value(&mut log_state.filter_level, tracing::Level::ERROR, "ERROR");
             });
 
-        ui.label("Filter:");
+        ui.label(i18n.t("filter"));
         ui.add(egui::TextEdit::singleline(&mut log_state.filter_text).desired_width(150.0));
 
-        ui.checkbox(&mut log_state.auto_scroll, "Auto-scroll");
+        ui.checkbox(&mut log_state.auto_scroll, i18n.t("auto_scroll"));
 
-        if ui.button("Clear").clicked() {
+        if ui.button(i18n.t("clear")).clicked() {
             log_state.entries.clear();
             log_state.copy_status.clear();
         }
 
-        if ui.button("Copy All").clicked() {
+        if ui.button(i18n.t("copy_all")).clicked() {
             let text = filtered_text(
                 &log_state.entries,
                 log_state.filter_level,
@@ -114,7 +115,7 @@ pub fn draw(ui: &mut Ui, log_state: &mut LogState, buffer: &LogBuffer, theme: &T
             }
         }
 
-        if ui.button("Export").clicked() {
+        if ui.button(i18n.t("export")).clicked() {
             if let Some(path) = rfd::FileDialog::new()
                 .set_title("Export logs")
                 .add_filter("Log", &["log", "txt"])

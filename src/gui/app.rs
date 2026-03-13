@@ -405,25 +405,32 @@ impl eframe::App for TftpApp {
                     &mut self.dashboard,
                     &self.theme,
                     &active_sessions,
+                    &self.i18n,
                 );
             }
             Tab::Files => {
-                tabs::files::draw(ui, &self.state, &mut self.files);
+                tabs::files::draw(ui, &self.state, &mut self.files, &self.i18n);
             }
             Tab::Transfers => {
-                tabs::transfers::draw(ui, &transfer_history, &mut self.transfers);
+                tabs::transfers::draw(ui, &transfer_history, &mut self.transfers, &self.i18n);
             }
             Tab::Log => {
-                tabs::log_tab::draw(ui, &mut self.log_state, &self.log_buffer, &self.theme);
+                tabs::log_tab::draw(
+                    ui,
+                    &mut self.log_state,
+                    &self.log_buffer,
+                    &self.theme,
+                    &self.i18n,
+                );
             }
             Tab::Config => {
-                tabs::config_tab::draw(ui, &self.state, &mut self.config_state);
+                tabs::config_tab::draw(ui, &self.state, &mut self.config_state, &self.i18n);
             }
             Tab::Acl => {
-                tabs::acl_tab::draw(ui, &self.state, &mut self.acl_state);
+                tabs::acl_tab::draw(ui, &self.state, &mut self.acl_state, &self.i18n);
             }
             Tab::Help => {
-                tabs::help_tab::draw(ui, &mut self.help_state);
+                tabs::help_tab::draw(ui, &mut self.help_state, &self.i18n);
             }
         });
     }
