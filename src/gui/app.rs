@@ -8,6 +8,7 @@ use crate::gui::tabs::acl_tab::AclState;
 use crate::gui::tabs::config_tab::ConfigState;
 use crate::gui::tabs::dashboard::DashboardState;
 use crate::gui::tabs::files::FilesState;
+use crate::gui::tabs::help_tab::HelpState;
 use crate::gui::tabs::log_tab::LogState;
 use crate::gui::tabs::transfers::TransfersState;
 use crate::gui::tabs::{self, Tab};
@@ -43,6 +44,7 @@ pub struct TftpApp {
     log_state: LogState,
     config_state: ConfigState,
     acl_state: AclState,
+    help_state: HelpState,
 }
 
 impl TftpApp {
@@ -70,6 +72,7 @@ impl TftpApp {
             log_state: LogState::new(),
             config_state: ConfigState::from_config(&config),
             acl_state: AclState::from_config(&config.acl),
+            help_state: HelpState::new(),
         }
     }
 
@@ -213,12 +216,21 @@ impl eframe::App for TftpApp {
             .show(ctx, |ui| {
                 ui.add_space(8.0);
 
-                for tab in Tab::ALL {
+                for tab in Tab::MAIN {
                     let selected = *tab == self.current_tab;
                     if ui.selectable_label(selected, tab.label()).clicked() {
                         self.current_tab = *tab;
                     }
                 }
+
+                // Help pinned at bottom
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    ui.add_space(4.0);
+                    let selected = self.current_tab == Tab::Help;
+                    if ui.selectable_label(selected, "Help").clicked() {
+                        self.current_tab = Tab::Help;
+                    }
+                });
             });
 
         // Bottom status bar with stats
@@ -302,6 +314,9 @@ impl eframe::App for TftpApp {
             }
             Tab::Acl => {
                 tabs::acl_tab::draw(ui, &self.state, &mut self.acl_state);
+            }
+            Tab::Help => {
+                tabs::help_tab::draw(ui, &mut self.help_state);
             }
         });
     }

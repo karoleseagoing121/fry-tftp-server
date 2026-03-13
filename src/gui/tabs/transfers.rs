@@ -60,7 +60,7 @@ fn sort_header(
     ascending: bool,
 ) -> bool {
     let arrow = if current == col {
-        if ascending { " ▲" } else { " ▼" }
+        if ascending { " [A]" } else { " [D]" }
     } else {
         ""
     };

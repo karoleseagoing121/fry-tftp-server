@@ -2,6 +2,7 @@ pub mod acl_tab;
 pub mod config_tab;
 pub mod dashboard;
 pub mod files;
+pub mod help_tab;
 pub mod log_tab;
 pub mod transfers;
 
@@ -13,10 +14,12 @@ pub enum Tab {
     Log,
     Config,
     Acl,
+    Help,
 }
 
 impl Tab {
-    pub const ALL: &'static [Tab] = &[
+    /// Main tabs (shown at top of sidebar).
+    pub const MAIN: &'static [Tab] = &[
         Tab::Dashboard,
         Tab::Files,
         Tab::Transfers,
@@ -33,6 +36,7 @@ impl Tab {
             Tab::Log => "Log",
             Tab::Config => "Config",
             Tab::Acl => "ACL",
+            Tab::Help => "Help",
         }
     }
 }
