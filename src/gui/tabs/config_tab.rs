@@ -34,6 +34,7 @@ pub struct ConfigState {
     pub follow_symlinks: bool,
 
     pub show_bandwidth_chart: bool,
+    pub language: String,
 
     pub dirty: bool,
     pub status_message: String,
@@ -71,6 +72,7 @@ impl ConfigState {
             follow_symlinks: config.filesystem.follow_symlinks,
 
             show_bandwidth_chart: config.gui.show_bandwidth_chart,
+            language: config.gui.language.clone(),
 
             dirty: false,
             status_message: String::new(),
@@ -143,6 +145,7 @@ impl ConfigState {
         config.filesystem.follow_symlinks = self.follow_symlinks;
 
         config.gui.show_bandwidth_chart = self.show_bandwidth_chart;
+        config.gui.language = self.language.clone();
 
         Ok(())
     }
@@ -307,6 +310,28 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState) {
             egui::Grid::new("dashboard_cfg").show(ui, |ui| {
                 ui.label("Show Bandwidth Chart:");
                 if ui.checkbox(&mut cs.show_bandwidth_chart, "").changed() {
+                    cs.dirty = true;
+                }
+                ui.end_row();
+            });
+        });
+
+        ui.collapsing("Language", |ui| {
+            egui::Grid::new("lang_cfg").show(ui, |ui| {
+                ui.label("Interface Language:");
+                let prev = cs.language.clone();
+                egui::ComboBox::from_id_salt("lang_combo")
+                    .selected_text(crate::core::i18n::Lang::from_str(&cs.language).name())
+                    .show_ui(ui, |ui| {
+                        for lang in crate::core::i18n::Lang::ALL {
+                            ui.selectable_value(
+                                &mut cs.language,
+                                lang.code().to_string(),
+                                lang.name(),
+                            );
+                        }
+                    });
+                if cs.language != prev {
                     cs.dirty = true;
                 }
                 ui.end_row();

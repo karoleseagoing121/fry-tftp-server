@@ -40,6 +40,18 @@ impl Tab {
         }
     }
 
+    pub fn i18n_key(&self) -> &str {
+        match self {
+            Tab::Dashboard => "tab_dashboard",
+            Tab::Files => "tab_files",
+            Tab::Transfers => "tab_transfers",
+            Tab::Log => "tab_log",
+            Tab::Config => "tab_config",
+            Tab::Acl => "tab_acl",
+            Tab::Help => "tab_help",
+        }
+    }
+
     pub fn icon(&self) -> &str {
         match self {
             Tab::Dashboard => "\u{1F4CA}",

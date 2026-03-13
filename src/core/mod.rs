@@ -2,6 +2,7 @@ pub mod acl;
 pub mod buffer_pool;
 pub mod config;
 pub mod fs;
+pub mod i18n;
 pub mod ipc;
 pub mod log_buffer;
 pub mod net;

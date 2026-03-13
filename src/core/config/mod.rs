@@ -55,6 +55,7 @@ pub struct GuiConfig {
     pub refresh_rate_ms: u64,
     pub graph_history_seconds: u64,
     pub show_bandwidth_chart: bool,
+    pub language: String,
 }
 
 impl Default for GuiConfig {
@@ -64,6 +65,7 @@ impl Default for GuiConfig {
             refresh_rate_ms: 250,
             graph_history_seconds: 300,
             show_bandwidth_chart: false,
+            language: "en".to_string(),
         }
     }
 }

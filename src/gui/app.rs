@@ -2,6 +2,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::core::i18n::{I18n, Lang};
 use crate::core::state::*;
 use crate::gui::log_layer::LogBuffer;
 use crate::gui::tabs::acl_tab::AclState;
@@ -35,6 +36,7 @@ pub struct TftpApp {
     tray_state: Option<TrayState>,
     last_tray_visual: TrayVisualState,
     show_about: bool,
+    pub i18n: I18n,
     /// Tokio runtime handle for spawning server restart tasks
     rt_handle: tokio::runtime::Handle,
 
@@ -65,6 +67,7 @@ impl TftpApp {
             tray_state,
             last_tray_visual: TrayVisualState::Running,
             show_about: false,
+            i18n: I18n::new(Lang::from_str(&config.gui.language)),
             rt_handle: tokio::runtime::Handle::current(),
             dashboard: DashboardState::new(),
             files: FilesState::new(root),
@@ -93,6 +96,12 @@ impl eframe::App for TftpApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.theme.apply(ctx);
         ctx.request_repaint_after(Duration::from_millis(250));
+
+        // Sync language from config
+        let cfg_lang = Lang::from_str(&self.state.config().gui.language);
+        if cfg_lang != self.i18n.lang() {
+            self.i18n.set_lang(cfg_lang);
+        }
 
         // Handle system tray events
         if let Some(ref tray) = self.tray_state {
@@ -139,31 +148,34 @@ impl eframe::App for TftpApp {
         // Top panel
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                let (status_text, status_color) = match server_state {
-                    ServerState::Running => ("Running", self.theme.status_running()),
-                    ServerState::Starting => ("Starting...", self.theme.accent()),
-                    ServerState::Stopping => ("Stopping...", self.theme.accent()),
-                    ServerState::Stopped => ("Stopped", self.theme.status_stopped()),
-                    ServerState::Error => ("Error", self.theme.status_error()),
+                let t = &self.i18n;
+                let (status_key, status_color) = match server_state {
+                    ServerState::Running => ("running", self.theme.status_running()),
+                    ServerState::Starting => ("starting", self.theme.accent()),
+                    ServerState::Stopping => ("stopping", self.theme.accent()),
+                    ServerState::Stopped => ("stopped", self.theme.status_stopped()),
+                    ServerState::Error => ("error", self.theme.status_error()),
                 };
-                ui.label("Status:");
-                ui.colored_label(status_color, status_text);
+                ui.label(t.t("status"));
+                ui.colored_label(status_color, t.t(status_key));
 
                 ui.separator();
                 let config = self.state.config();
                 ui.label(format!(
-                    "Listening: {}:{}",
-                    config.server.bind_address, config.server.port
+                    "{} {}:{}",
+                    t.t("listening"),
+                    config.server.bind_address,
+                    config.server.port
                 ));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("About").clicked() {
+                    if ui.button(t.t("about")).clicked() {
                         self.show_about = !self.show_about;
                     }
 
                     let theme_label = match self.theme {
-                        Theme::Dark => "Light Mode",
-                        Theme::Light => "Dark Mode",
+                        Theme::Dark => t.t("light_mode"),
+                        Theme::Light => t.t("dark_mode"),
                     };
                     if ui.button(theme_label).clicked() {
                         self.theme = match self.theme {
@@ -174,12 +186,12 @@ impl eframe::App for TftpApp {
 
                     match server_state {
                         ServerState::Running => {
-                            if ui.button("Stop Server").clicked() {
+                            if ui.button(t.t("stop_server")).clicked() {
                                 self.state.cancel_shutdown();
                             }
                         }
                         ServerState::Stopped | ServerState::Error => {
-                            if ui.button("Start Server").clicked() {
+                            if ui.button(t.t("start_server")).clicked() {
                                 let state = self.state.clone();
                                 self.dashboard = DashboardState::new();
                                 self.rt_handle.spawn(async move {
@@ -203,52 +215,49 @@ impl eframe::App for TftpApp {
 
         // About panel (right-side, between top and bottom headers)
         if self.show_about {
+            let t = &self.i18n;
             egui::SidePanel::right("about_panel")
                 .default_width(280.0)
                 .resizable(false)
                 .show(ctx, |ui| {
-                    ui.heading("About");
+                    ui.heading(t.t("about"));
                     ui.separator();
                     ui.add_space(8.0);
 
-                    ui.label(egui::RichText::new("Fry TFTP Server").strong().size(16.0));
-                    ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
+                    ui.label(egui::RichText::new(t.t("about_title")).strong().size(16.0));
+                    ui.label(format!("{} {}", t.t("version"), env!("CARGO_PKG_VERSION")));
                     ui.add_space(12.0);
 
                     egui::Grid::new("about_grid")
                         .spacing([8.0, 4.0])
                         .show(ui, |ui| {
-                            ui.strong("Author:");
-                            ui.label("Viacheslav Gordeev");
+                            ui.strong(t.t("author"));
+                            ui.label(t.t("author_name"));
                             ui.end_row();
 
-                            ui.strong("Email:");
+                            ui.strong(t.t("email"));
                             ui.label("qulisun@gmail.com");
                             ui.end_row();
 
-                            ui.strong("Source:");
+                            ui.strong(t.t("source"));
                             ui.hyperlink_to(
                                 "github.com/qulisun/fry-tftp-server",
                                 "https://github.com/qulisun/fry-tftp-server",
                             );
                             ui.end_row();
 
-                            ui.strong("License:");
+                            ui.strong(t.t("license"));
                             ui.label("MIT");
                             ui.end_row();
                         });
 
                     ui.add_space(12.0);
-                    ui.label(
-                        egui::RichText::new("Built with Rust, egui, tokio, ratatui")
-                            .small()
-                            .weak(),
-                    );
+                    ui.label(egui::RichText::new(t.t("built_with")).small().weak());
 
                     // Close button at bottom-right
                     ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
                         ui.add_space(4.0);
-                        if ui.button("Close").clicked() {
+                        if ui.button(t.t("close")).clicked() {
                             self.show_about = false;
                         }
                     });
@@ -267,58 +276,67 @@ impl eframe::App for TftpApp {
             .show(ctx, |ui| {
                 ui.add_space(8.0);
 
-                let draw_sidebar_button =
-                    |ui: &mut egui::Ui, tab: &Tab, current: &mut Tab, theme: &Theme| {
-                        let selected = *tab == *current;
+                let draw_sidebar_button = |ui: &mut egui::Ui,
+                                           tab: &Tab,
+                                           current: &mut Tab,
+                                           theme: &Theme,
+                                           i18n: &I18n| {
+                    let selected = *tab == *current;
 
-                        // Reserve space and check hover before drawing
-                        let desired_size = egui::vec2(ui.available_width(), 32.0);
-                        let (rect, response) =
-                            ui.allocate_exact_size(desired_size, egui::Sense::click());
+                    // Reserve space and check hover before drawing
+                    let desired_size = egui::vec2(ui.available_width(), 32.0);
+                    let (rect, response) =
+                        ui.allocate_exact_size(desired_size, egui::Sense::click());
 
-                        let hovered = response.hovered();
-                        let bg = if selected {
-                            theme.sidebar_selected_bg()
-                        } else if hovered {
-                            theme.sidebar_hover_bg()
-                        } else {
-                            egui::Color32::TRANSPARENT
-                        };
-                        let text_color = if selected || hovered {
-                            theme.sidebar_selected_text()
-                        } else {
-                            theme.sidebar_text()
-                        };
-
-                        // Draw rounded background
-                        ui.painter()
-                            .rect_filled(rect, egui::CornerRadius::same(8), bg);
-
-                        // Draw label with icon
-                        let label_text = format!("{} {}", tab.icon(), tab.label());
-                        let galley = ui.painter().layout_no_wrap(
-                            label_text,
-                            egui::FontId::proportional(14.0),
-                            text_color,
-                        );
-                        let text_pos =
-                            egui::pos2(rect.left() + 10.0, rect.center().y - galley.size().y / 2.0);
-                        ui.painter().galley(text_pos, galley, text_color);
-
-                        if response.clicked() {
-                            *current = *tab;
-                        }
+                    let hovered = response.hovered();
+                    let bg = if selected {
+                        theme.sidebar_selected_bg()
+                    } else if hovered {
+                        theme.sidebar_hover_bg()
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    };
+                    let text_color = if selected || hovered {
+                        theme.sidebar_selected_text()
+                    } else {
+                        theme.sidebar_text()
                     };
 
+                    // Draw rounded background
+                    ui.painter()
+                        .rect_filled(rect, egui::CornerRadius::same(8), bg);
+
+                    // Draw label with icon
+                    let label_text = format!("{} {}", tab.icon(), i18n.t(tab.i18n_key()));
+                    let galley = ui.painter().layout_no_wrap(
+                        label_text,
+                        egui::FontId::proportional(14.0),
+                        text_color,
+                    );
+                    let text_pos =
+                        egui::pos2(rect.left() + 10.0, rect.center().y - galley.size().y / 2.0);
+                    ui.painter().galley(text_pos, galley, text_color);
+
+                    if response.clicked() {
+                        *current = *tab;
+                    }
+                };
+
                 for tab in Tab::MAIN {
-                    draw_sidebar_button(ui, tab, &mut self.current_tab, &self.theme);
+                    draw_sidebar_button(ui, tab, &mut self.current_tab, &self.theme, &self.i18n);
                     ui.add_space(2.0);
                 }
 
                 // Help pinned at bottom
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     ui.add_space(4.0);
-                    draw_sidebar_button(ui, &Tab::Help, &mut self.current_tab, &self.theme);
+                    draw_sidebar_button(
+                        ui,
+                        &Tab::Help,
+                        &mut self.current_tab,
+                        &self.theme,
+                        &self.i18n,
+                    );
                 });
             });
 
@@ -331,14 +349,21 @@ impl eframe::App for TftpApp {
                     .inner_margin(egui::Margin::symmetric(8, 2)),
             )
             .show(ctx, |ui| {
+                let t = &self.i18n;
                 ui.horizontal_centered(|ui| {
                     ui.label(
-                        egui::RichText::new(format!("Sessions: {}", active_sessions.len())).small(),
+                        egui::RichText::new(format!(
+                            "{}: {}",
+                            t.t("sessions"),
+                            active_sessions.len()
+                        ))
+                        .small(),
                     );
                     ui.separator();
                     ui.label(
                         egui::RichText::new(format!(
-                            "Total: {}",
+                            "{}: {}",
+                            t.t("total"),
                             self.state.total_sessions.load(Ordering::Relaxed)
                         ))
                         .small(),
@@ -346,7 +371,8 @@ impl eframe::App for TftpApp {
                     ui.separator();
                     ui.label(
                         egui::RichText::new(format!(
-                            "Errors: {}",
+                            "{}: {}",
+                            t.t("errors"),
                             self.state.total_errors.load(Ordering::Relaxed)
                         ))
                         .small(),
