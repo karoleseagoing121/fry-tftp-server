@@ -30,11 +30,39 @@ pub async fn run(
 
     let app_state_for_close = state.clone();
 
+    // Load window icon from embedded PNG
+    let icon = {
+        let png_bytes = include_bytes!("tray_icon_32.png");
+        let decoder = png::Decoder::new(std::io::Cursor::new(png_bytes as &[u8]));
+        let mut reader = decoder.read_info().expect("failed to read icon PNG");
+        let mut buf = vec![0u8; reader.output_buffer_size()];
+        let info = reader
+            .next_frame(&mut buf)
+            .expect("failed to decode icon PNG");
+        let raw = &buf[..info.buffer_size()];
+        let rgba = if info.color_type == png::ColorType::Rgb {
+            let mut out = Vec::with_capacity((info.width * info.height * 4) as usize);
+            for chunk in raw.chunks(3) {
+                out.extend_from_slice(chunk);
+                out.push(255);
+            }
+            out
+        } else {
+            raw.to_vec()
+        };
+        egui::IconData {
+            rgba,
+            width: info.width,
+            height: info.height,
+        }
+    };
+
     // Run eframe on the current thread (blocks until window is closed)
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])
-            .with_min_inner_size([800.0, 600.0]),
+            .with_min_inner_size([800.0, 600.0])
+            .with_icon(std::sync::Arc::new(icon)),
         ..Default::default()
     };
 
