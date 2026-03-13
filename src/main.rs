@@ -148,8 +148,9 @@ fn main() -> anyhow::Result<()> {
         .enable_all()
         .build()?;
 
-    // Determine mode and run
-    if cli.gui {
+    // Determine mode: default to GUI if no mode specified and GUI feature available
+    let use_gui = cli.gui || (!cli.tui && !cli.headless && cfg!(feature = "gui"));
+    if use_gui {
         #[cfg(feature = "gui")]
         {
             let log_buffer = init_logging_with_buffer(&config, true);
