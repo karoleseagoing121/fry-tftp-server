@@ -1,0 +1,33 @@
+[Unit]
+Description=Fry TFTP Server
+Documentation=https://github.com/user/fry-tftp-server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/fry-tftp-server --headless
+ExecReload=/bin/kill -HUP $MAINPID
+NotifyAccess=main
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=4096
+
+# Security hardening
+User=tftp
+Group=tftp
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/tftp /var/log/fry-tftp-server.log
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+MemoryDenyWriteExecute=yes
+
+# Capabilities: bind to port 69
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

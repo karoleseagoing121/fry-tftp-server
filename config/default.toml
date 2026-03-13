@@ -1,0 +1,49 @@
+# =============================================================
+# Fry TFTP Server — Default Configuration
+# =============================================================
+
+[server]
+bind_address = "::"
+port = 69
+# root — platform-specific default (C:\TFTP on Windows, /srv/tftp on Linux)
+log_level = "info"
+log_file = ""
+
+[network]
+ip_version = "dual"
+recv_buffer_size = 4194304
+send_buffer_size = 4194304
+session_recv_buffer = 2097152
+session_send_buffer = 2097152
+
+[protocol]
+allow_write = false
+default_blksize = 512
+max_blksize = 65464
+default_windowsize = 1
+max_windowsize = 64
+default_timeout = 3
+min_timeout = 1
+max_timeout = 255
+
+[session]
+max_sessions = 100
+max_retries = 5
+exponential_backoff = true
+session_timeout = 120
+shutdown_grace_period = 30
+
+[security]
+per_ip_max_sessions = 10
+per_ip_rate_limit = 100
+rate_limit_window_seconds = 60
+rate_limit_action = "drop"
+
+[filesystem]
+max_file_size = "4GB"
+allow_overwrite = false
+create_dirs = false
+follow_symlinks = false
+
+[acl]
+mode = "disabled"

@@ -1,0 +1,9 @@
+target/
+.git/
+.github/
+.claude/
+*.md
+deploy/
+fuzz/
+benches/
+tests/fixtures/
