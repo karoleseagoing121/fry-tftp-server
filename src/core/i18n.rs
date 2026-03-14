@@ -9,12 +9,14 @@ use std::collections::HashMap;
 pub enum Lang {
     En,
     Ru,
+    De,
 }
 
 impl Lang {
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "ru" | "russian" => Lang::Ru,
+            "de" | "german" | "deutsch" => Lang::De,
             _ => Lang::En,
         }
     }
@@ -23,6 +25,7 @@ impl Lang {
         match self {
             Lang::En => "en",
             Lang::Ru => "ru",
+            Lang::De => "de",
         }
     }
 
@@ -30,10 +33,11 @@ impl Lang {
         match self {
             Lang::En => "English",
             Lang::Ru => "Русский",
+            Lang::De => "Deutsch",
         }
     }
 
-    pub const ALL: &'static [Lang] = &[Lang::En, Lang::Ru];
+    pub const ALL: &'static [Lang] = &[Lang::En, Lang::Ru, Lang::De];
 }
 
 pub struct I18n {
@@ -46,6 +50,7 @@ impl I18n {
         let strings = match lang {
             Lang::En => en(),
             Lang::Ru => ru(),
+            Lang::De => de(),
         };
         Self { lang, strings }
     }
@@ -59,6 +64,7 @@ impl I18n {
         self.strings = match lang {
             Lang::En => en(),
             Lang::Ru => ru(),
+            Lang::De => de(),
         };
     }
 
@@ -413,6 +419,182 @@ fn ru() -> HashMap<&'static str, &'static str> {
     m.insert("source", "Исходный код:");
     m.insert("license", "Лицензия:");
     m.insert("built_with", "Создано на Rust, egui, tokio, ratatui");
+
+    m
+}
+
+fn de() -> HashMap<&'static str, &'static str> {
+    let mut m = HashMap::new();
+
+    // Header
+    m.insert("status", "Status:");
+    m.insert("listening", "Lauscht:");
+    m.insert("running", "Läuft");
+    m.insert("starting", "Startet...");
+    m.insert("stopping", "Stoppt...");
+    m.insert("stopped", "Gestoppt");
+    m.insert("error", "Fehler");
+    m.insert("start_server", "Server starten");
+    m.insert("stop_server", "Server stoppen");
+    m.insert("light_mode", "Helles Design");
+    m.insert("dark_mode", "Dunkles Design");
+    m.insert("about", "Über");
+    m.insert("close", "Schließen");
+
+    // Tabs
+    m.insert("tab_dashboard", "Übersicht");
+    m.insert("tab_files", "Dateien");
+    m.insert("tab_transfers", "Übertragungen");
+    m.insert("tab_log", "Protokoll");
+    m.insert("tab_config", "Einstellungen");
+    m.insert("tab_acl", "ACL");
+    m.insert("tab_help", "Hilfe");
+
+    // Status bar
+    m.insert("sessions", "Sitzungen");
+    m.insert("total", "Gesamt");
+    m.insert("errors", "Fehler");
+
+    // Dashboard
+    m.insert("active_sessions", "Aktive Sitzungen");
+    m.insert("tx_rate", "TX-Rate");
+    m.insert("rx_rate", "RX-Rate");
+    m.insert("active_transfers", "Aktive Übertragungen");
+    m.insert("no_active_transfers", "Keine aktiven Übertragungen");
+    m.insert("client", "Client");
+    m.insert("file", "Datei");
+    m.insert("direction", "Richt.");
+    m.insert("progress", "Fortschritt");
+    m.insert("speed", "Geschw.");
+    m.insert("duration", "Dauer");
+    m.insert("blksize", "Blockgr.");
+    m.insert("window", "Fenster");
+    m.insert("download", "Download");
+    m.insert("upload", "Upload");
+    m.insert("bandwidth", "Bandbreite");
+    m.insert("tx_mbps", "TX (MB/s)");
+    m.insert("rx_mbps", "RX (MB/s)");
+
+    // Files
+    m.insert("refresh", "Aktualisieren");
+    m.insert("change_root", "Ordner wechseln...");
+    m.insert("up", "Hoch");
+    m.insert("name", "Name");
+    m.insert("size", "Größe");
+    m.insert("type", "Typ");
+    m.insert("directory", "Ordner");
+
+    // Transfers
+    m.insert("transfer_history", "Übertragungsverlauf");
+    m.insert("export_csv", "CSV exportieren");
+    m.insert("export_json", "JSON exportieren");
+    m.insert("status_label", "Status:");
+    m.insert("all", "Alle");
+    m.insert("completed", "Abgeschlossen");
+    m.insert("failed", "Fehlgeschlagen");
+    m.insert("cancelled", "Abgebrochen");
+    m.insert("retransmits", "Wiederholungen");
+    m.insert("ok", "OK");
+    m.insert("fail", "FEHL");
+
+    // Log
+    m.insert("level", "Stufe:");
+    m.insert("filter", "Filter:");
+    m.insert("auto_scroll", "Auto-Scrollen");
+    m.insert("clear", "Löschen");
+    m.insert("copy_all", "Alles kopieren");
+    m.insert("export", "Exportieren");
+
+    // Config
+    m.insert("configuration", "Konfiguration");
+    m.insert("server", "Server");
+    m.insert(
+        "port_restart_note",
+        "* Port, Adresse und IP-Version erfordern Neustart",
+    );
+    m.insert("port", "Port *:");
+    m.insert("bind_address", "Adresse *:");
+    m.insert("root_directory", "Stammverzeichnis:");
+    m.insert("browse", "Durchsuchen...");
+    m.insert("ip_version", "IP-Version *:");
+    m.insert("dual_stack", "Dual-Stack");
+    m.insert("ipv4_only", "Nur IPv4");
+    m.insert("ipv6_only", "Nur IPv6");
+    m.insert("log_level", "Protokollstufe:");
+    m.insert("max_log_lines", "Max. Protokollzeilen:");
+    m.insert("unlimited", "0 = unbegrenzt");
+    m.insert("protocol", "Protokoll");
+    m.insert("allow_write", "Schreiben erlauben:");
+    m.insert("default_blksize", "Standard-Blockgr.:");
+    m.insert("max_blksize", "Max. Blockgröße:");
+    m.insert("default_windowsize", "Standard-Fenster:");
+    m.insert("max_windowsize", "Max. Fenstergröße:");
+    m.insert("default_timeout", "Standard-Timeout:");
+    m.insert("session", "Sitzung");
+    m.insert("max_sessions", "Max. Sitzungen:");
+    m.insert("max_retries", "Max. Wiederholungen:");
+    m.insert("session_timeout", "Sitzungs-Timeout (s):");
+    m.insert("exponential_backoff", "Expon. Backoff:");
+    m.insert("security", "Sicherheit");
+    m.insert("per_ip_max_sessions", "Sitzungen pro IP:");
+    m.insert("per_ip_rate_limit", "Rate-Limit pro IP:");
+    m.insert("rate_limit_window", "Rate-Limit-Fenster (s):");
+    m.insert("dashboard_section", "Übersicht");
+    m.insert("show_bandwidth_chart", "Bandbreitendiagramm:");
+    m.insert("filesystem", "Dateisystem");
+    m.insert("max_file_size", "Max. Dateigröße:");
+    m.insert("allow_overwrite", "Überschreiben erlauben:");
+    m.insert("create_directories", "Ordner erstellen:");
+    m.insert("follow_symlinks", "Symlinks folgen:");
+    m.insert("apply", "Übernehmen");
+    m.insert(
+        "restart_note",
+        " (Port/Adresse/IP erfordern Serverneustart)",
+    );
+    m.insert("reset_current", "Auf aktuell zurücksetzen");
+    m.insert("reset_defaults", "Standardwerte");
+    m.insert("import_toml", "TOML importieren...");
+    m.insert("export_toml", "TOML exportieren...");
+    m.insert("language", "Sprache");
+    m.insert("language_label", "Oberflächensprache:");
+
+    // ACL
+    m.insert("access_control_list", "Zugriffskontrollliste");
+    m.insert("mode", "Modus:");
+    m.insert("disabled", "Deaktiviert");
+    m.insert("whitelist", "Whitelist");
+    m.insert("blacklist", "Blacklist");
+    m.insert("no_acl_rules", "Keine ACL-Regeln konfiguriert");
+    m.insert("acl_recommendation", "Es wird empfohlen, ACL-Regeln hinzuzufügen, wenn der Server im Netzwerk erreichbar ist. Verwenden Sie die Whitelist für vertrauenswürdige IPs oder die Blacklist zum Blockieren.");
+    m.insert("action", "Aktion");
+    m.insert("source_cidr", "Quelle (CIDR)");
+    m.insert("operations", "Operationen");
+    m.insert("comment", "Kommentar");
+    m.insert("allow", "Erlauben");
+    m.insert("deny", "Verweigern");
+    m.insert("add_rule", "Regel hinzufügen");
+    m.insert("add", "Hinzufügen:");
+    m.insert("invalid_cidr", "Ungültiges CIDR-Format");
+    m.insert("reset", "Zurücksetzen");
+
+    // Help
+    m.insert("help_title", "Fry TFTP Server");
+    m.insert(
+        "help_subtitle",
+        "Hochleistungsfähiger, plattformübergreifender TFTP-Server",
+    );
+    m.insert("supported_rfcs", "Unterstützte RFCs");
+    m.insert("features", "Funktionen");
+
+    // About
+    m.insert("about_title", "Fry TFTP Server");
+    m.insert("version", "Version:");
+    m.insert("author", "Autor:");
+    m.insert("author_name", "Viacheslav Gordeev");
+    m.insert("email", "E-Mail:");
+    m.insert("source", "Quellcode:");
+    m.insert("license", "Lizenz:");
+    m.insert("built_with", "Erstellt mit Rust, egui, tokio, ratatui");
 
     m
 }
