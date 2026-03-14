@@ -185,6 +185,7 @@ fn en() -> HashMap<&'static str, &'static str> {
     m.insert("ipv6_only", "IPv6 Only");
     m.insert("log_level", "Log Level:");
     m.insert("max_log_lines", "Max Log Lines:");
+    m.insert("transfer_log", "Transfer Log:");
     m.insert("unlimited", "0 = unlimited");
     m.insert("protocol", "Protocol");
     m.insert("allow_write", "Allow Write:");
@@ -361,6 +362,7 @@ fn ru() -> HashMap<&'static str, &'static str> {
     m.insert("ipv6_only", "Только IPv6");
     m.insert("log_level", "Уровень логов:");
     m.insert("max_log_lines", "Макс. строк лога:");
+    m.insert("transfer_log", "Лог передач:");
     m.insert("unlimited", "0 = без ограничений");
     m.insert("protocol", "Протокол");
     m.insert("allow_write", "Разрешить запись:");
@@ -534,6 +536,7 @@ fn de() -> HashMap<&'static str, &'static str> {
     m.insert("ipv6_only", "Nur IPv6");
     m.insert("log_level", "Protokollstufe:");
     m.insert("max_log_lines", "Max. Protokollzeilen:");
+    m.insert("transfer_log", "Transfer-Protokoll:");
     m.insert("unlimited", "0 = unbegrenzt");
     m.insert("protocol", "Protokoll");
     m.insert("allow_write", "Schreiben erlauben:");
@@ -710,6 +713,7 @@ fn es() -> HashMap<&'static str, &'static str> {
     m.insert("ipv6_only", "Solo IPv6");
     m.insert("log_level", "Nivel de registro:");
     m.insert("max_log_lines", "Máx. líneas de registro:");
+    m.insert("transfer_log", "Registro de transferencias:");
     m.insert("unlimited", "0 = sin límite");
     m.insert("protocol", "Protocolo");
     m.insert("allow_write", "Permitir escritura:");
@@ -875,6 +879,7 @@ fn fr() -> HashMap<&'static str, &'static str> {
     m.insert("ipv6_only", "IPv6 uniquement");
     m.insert("log_level", "Niveau du journal :");
     m.insert("max_log_lines", "Max. lignes de journal :");
+    m.insert("transfer_log", "Journal des transferts :");
     m.insert("unlimited", "0 = illimité");
     m.insert("protocol", "Protocole");
     m.insert("allow_write", "Autoriser l'écriture :");

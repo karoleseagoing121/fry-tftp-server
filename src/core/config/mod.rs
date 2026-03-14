@@ -122,6 +122,8 @@ pub struct ServerConfig {
     pub max_log_lines: usize,
     /// Enable system log integration (journald on Linux, Event Log on Windows)
     pub syslog: bool,
+    /// Path to transfer history log (JSON Lines format). Empty = disabled.
+    pub transfer_log: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,7 +251,36 @@ impl Default for ServerConfig {
             log_file: default_log_file(),
             max_log_lines: 5000,
             syslog: false,
+            transfer_log: default_transfer_log(),
         }
+    }
+}
+
+fn default_transfer_log() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        dirs::data_dir()
+            .map(|d| {
+                d.join("fry-tftp-server")
+                    .join("transfers.jsonl")
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .unwrap_or_default()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        dirs::home_dir()
+            .map(|h| {
+                h.join("Library/Logs/fry-tftp-transfers.jsonl")
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .unwrap_or_default()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        "/var/log/fry-tftp-transfers.jsonl".to_string()
     }
 }
 

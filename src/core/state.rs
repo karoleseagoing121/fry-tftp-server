@@ -370,6 +370,41 @@ impl AppState {
                 timestamp: Instant::now(),
             };
 
+            // Write to transfer log file (JSON Lines)
+            let config = self.config();
+            if !config.server.transfer_log.is_empty() {
+                let line = serde_json::json!({
+                    "ts": chrono_now(),
+                    "client": record.client_addr.to_string(),
+                    "file": &record.filename,
+                    "dir": match record.direction { Direction::Read => "DL", Direction::Write => "UL" },
+                    "bytes": record.bytes_transferred,
+                    "ms": record.duration_ms,
+                    "mbps": format!("{:.1}", record.speed_mbps),
+                    "status": match record.status {
+                        SessionStatus::Completed => "OK",
+                        SessionStatus::Failed => "FAIL",
+                        SessionStatus::Cancelled => "CANCEL",
+                        _ => "?",
+                    },
+                    "retx": record.retransmits,
+                });
+                if let Ok(json) = serde_json::to_string(&line) {
+                    use std::io::Write;
+                    let path = std::path::Path::new(&config.server.transfer_log);
+                    if let Some(parent) = path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(path)
+                    {
+                        let _ = writeln!(f, "{}", json);
+                    }
+                }
+            }
+
             drop(sessions);
             let mut history = self.transfer_history.write().await;
             history.push(record);
@@ -380,4 +415,74 @@ impl AppState {
             }
         }
     }
+
+    /// Load transfer history from jsonl file at startup
+    pub fn load_transfer_history(&self) {
+        let config = self.config();
+        let path = &config.server.transfer_log;
+        if path.is_empty() {
+            return;
+        }
+        let content = match std::fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+        let mut records = Vec::new();
+        for line in content.lines().rev().take(1000) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
+                let record = TransferRecord {
+                    id: Uuid::new_v4(),
+                    client_addr: val["client"]
+                        .as_str()
+                        .unwrap_or("?")
+                        .parse()
+                        .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap()),
+                    filename: val["file"].as_str().unwrap_or("?").to_string(),
+                    direction: if val["dir"].as_str() == Some("UL") {
+                        Direction::Write
+                    } else {
+                        Direction::Read
+                    },
+                    bytes_transferred: val["bytes"].as_u64().unwrap_or(0),
+                    duration_ms: val["ms"].as_u64().unwrap_or(0),
+                    speed_mbps: val["mbps"]
+                        .as_str()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0.0),
+                    status: match val["status"].as_str() {
+                        Some("OK") => SessionStatus::Completed,
+                        Some("FAIL") => SessionStatus::Failed,
+                        Some("CANCEL") => SessionStatus::Cancelled,
+                        _ => SessionStatus::Failed,
+                    },
+                    retransmits: val["retx"].as_u64().unwrap_or(0) as u32,
+                    timestamp: Instant::now(),
+                };
+                records.push(record);
+            }
+        }
+        records.reverse();
+        if let Ok(mut history) = self.transfer_history.try_write() {
+            *history = records;
+        }
+    }
+}
+
+fn chrono_now() -> String {
+    let dur = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = dur.as_secs();
+    let h = (secs % 86400) / 3600;
+    let m = (secs % 3600) / 60;
+    let s = secs % 60;
+    format!(
+        "{}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        1970 + secs / 31557600,            // approximate year
+        ((secs % 31557600) / 2629800) + 1, // approximate month
+        ((secs % 2629800) / 86400) + 1,    // approximate day
+        h,
+        m,
+        s
+    )
 }

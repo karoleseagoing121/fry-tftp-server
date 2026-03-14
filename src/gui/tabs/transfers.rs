@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use egui::Ui;
 
 use crate::core::i18n::I18n;
@@ -21,6 +23,7 @@ pub struct TransfersState {
     pub filter_status: String,
     pub sort_column: SortColumn,
     pub sort_ascending: bool,
+    pub show_clear_popup: bool,
 }
 
 impl Default for TransfersState {
@@ -37,6 +40,7 @@ impl TransfersState {
             filter_status: "all".to_string(),
             sort_column: SortColumn::Duration,
             sort_ascending: false,
+            show_clear_popup: false,
         }
     }
 }
@@ -51,26 +55,6 @@ fn format_bytes(bytes: u64) -> String {
     } else {
         format!("{} B", bytes)
     }
-}
-
-fn sort_header(
-    ui: &mut Ui,
-    label: &str,
-    col: SortColumn,
-    current: SortColumn,
-    ascending: bool,
-) -> bool {
-    let arrow = if current == col {
-        if ascending {
-            " [A]"
-        } else {
-            " [D]"
-        }
-    } else {
-        ""
-    };
-    let text = format!("{}{}", label, arrow);
-    ui.strong(text).clicked()
 }
 
 fn export_json(records: &[&TransferRecord]) {
@@ -155,7 +139,13 @@ fn export_csv(records: &[&TransferRecord]) {
     }
 }
 
-pub fn draw(ui: &mut Ui, history: &[TransferRecord], transfers: &mut TransfersState, i18n: &I18n) {
+pub fn draw(
+    ui: &mut Ui,
+    history: &[TransferRecord],
+    transfers: &mut TransfersState,
+    state: &Arc<AppState>,
+    i18n: &I18n,
+) {
     ui.heading(i18n.t("transfer_history"));
 
     // Filters + Export
@@ -184,7 +174,44 @@ pub fn draw(ui: &mut Ui, history: &[TransferRecord], transfers: &mut TransfersSt
                     i18n.t("failed"),
                 );
             });
+
+        if ui.button(i18n.t("clear")).clicked() {
+            transfers.show_clear_popup = true;
+        }
     });
+
+    // Clear confirmation popup
+    if transfers.show_clear_popup {
+        egui::Window::new(i18n.t("clear"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ui.ctx(), |ui| {
+                ui.label("Clear transfer history?");
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("GUI only").clicked() {
+                        if let Ok(mut h) = state.transfer_history.try_write() {
+                            h.clear();
+                        }
+                        transfers.show_clear_popup = false;
+                    }
+                    if ui.button("GUI + File").clicked() {
+                        if let Ok(mut h) = state.transfer_history.try_write() {
+                            h.clear();
+                        }
+                        let config = state.config();
+                        if !config.server.transfer_log.is_empty() {
+                            let _ = std::fs::write(&config.server.transfer_log, "");
+                        }
+                        transfers.show_clear_popup = false;
+                    }
+                    if ui.button(i18n.t("close")).clicked() {
+                        transfers.show_clear_popup = false;
+                    }
+                });
+            });
+    }
 
     ui.separator();
 
@@ -295,58 +322,94 @@ pub fn draw(ui: &mut Ui, history: &[TransferRecord], transfers: &mut TransfersSt
         }
     });
 
-    egui::ScrollArea::both().show(ui, |ui| {
-        egui::Grid::new("transfers_grid")
-            .striped(true)
-            .min_col_width(80.0)
-            .show(ui, |ui| {
-                let cols = [
-                    (i18n.t("client"), SortColumn::Client),
-                    (i18n.t("file"), SortColumn::File),
-                    (i18n.t("direction"), SortColumn::Direction),
-                    (i18n.t("size"), SortColumn::Size),
-                    (i18n.t("duration"), SortColumn::Duration),
-                    (i18n.t("speed"), SortColumn::Speed),
-                    (i18n.t("status_label"), SortColumn::Status),
-                    (i18n.t("retransmits"), SortColumn::Retransmits),
-                ];
-                for (label, col) in &cols {
-                    if sort_header(
-                        ui,
-                        label,
-                        *col,
-                        transfers.sort_column,
-                        transfers.sort_ascending,
-                    ) {
-                        if transfers.sort_column == *col {
-                            transfers.sort_ascending = !transfers.sort_ascending;
-                        } else {
-                            transfers.sort_column = *col;
-                            transfers.sort_ascending = true;
-                        }
+    let w = ui.available_width();
+    let cw = [
+        w * 0.18,
+        w * 0.20,
+        w * 0.07,
+        w * 0.12,
+        w * 0.10,
+        w * 0.11,
+        w * 0.10,
+        w * 0.12,
+    ];
+    let h = 20.0;
+
+    egui::Grid::new("transfers_grid")
+        .num_columns(8)
+        .striped(true)
+        .spacing([0.0, 4.0])
+        .show(ui, |ui| {
+            let cols = [
+                (i18n.t("client"), SortColumn::Client),
+                (i18n.t("file"), SortColumn::File),
+                (i18n.t("direction"), SortColumn::Direction),
+                (i18n.t("size"), SortColumn::Size),
+                (i18n.t("duration"), SortColumn::Duration),
+                (i18n.t("speed"), SortColumn::Speed),
+                (i18n.t("status_label"), SortColumn::Status),
+                (i18n.t("retransmits"), SortColumn::Retransmits),
+            ];
+            for (idx, (label, col)) in cols.iter().enumerate() {
+                let arrow = if transfers.sort_column == *col {
+                    if transfers.sort_ascending {
+                        " [A]"
+                    } else {
+                        " [D]"
+                    }
+                } else {
+                    ""
+                };
+                let text = format!("{}{}", label, arrow);
+                let response = ui.add_sized(
+                    [cw[idx], h],
+                    egui::Label::new(egui::RichText::new(text).strong())
+                        .sense(egui::Sense::click()),
+                );
+                if response.clicked() {
+                    if transfers.sort_column == *col {
+                        transfers.sort_ascending = !transfers.sort_ascending;
+                    } else {
+                        transfers.sort_column = *col;
+                        transfers.sort_ascending = true;
                     }
                 }
-                ui.end_row();
+            }
+            ui.end_row();
 
-                for record in &filtered {
-                    ui.label(record.client_addr.to_string());
-                    ui.label(&record.filename);
-                    ui.label(match record.direction {
+            for record in &filtered {
+                ui.add_sized([cw[0], h], egui::Label::new(record.client_addr.to_string()));
+                ui.add_sized([cw[1], h], egui::Label::new(&record.filename));
+                ui.add_sized(
+                    [cw[2], h],
+                    egui::Label::new(match record.direction {
                         Direction::Read => i18n.t("download"),
                         Direction::Write => i18n.t("upload"),
-                    });
-                    ui.label(format_bytes(record.bytes_transferred));
-                    ui.label(format!("{}ms", record.duration_ms));
-                    ui.label(format!("{:.2} Mbps", record.speed_mbps));
-                    ui.label(match record.status {
+                    }),
+                );
+                ui.add_sized(
+                    [cw[3], h],
+                    egui::Label::new(format_bytes(record.bytes_transferred)),
+                );
+                ui.add_sized(
+                    [cw[4], h],
+                    egui::Label::new(format!("{}ms", record.duration_ms)),
+                );
+                ui.add_sized(
+                    [cw[5], h],
+                    egui::Label::new(format!("{:.2} Mbps", record.speed_mbps)),
+                );
+                ui.add_sized(
+                    [cw[6], h],
+                    egui::Label::new(match record.status {
                         SessionStatus::Completed => i18n.t("ok"),
                         SessionStatus::Failed => i18n.t("fail"),
                         SessionStatus::Cancelled => i18n.t("cancelled"),
                         _ => "?",
-                    });
-                    ui.label(record.retransmits.to_string());
-                    ui.end_row();
-                }
-            });
-    });
+                    }),
+                );
+                ui.add_sized([cw[7], h], egui::Label::new(record.retransmits.to_string()));
+                ui.end_row();
+            }
+        });
 }

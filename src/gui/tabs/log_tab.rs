@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use egui::{RichText, ScrollArea, Ui};
 
 use crate::core::i18n::I18n;
+use crate::core::state::AppState;
 use crate::gui::log_layer::{LogBuffer, LogEntry};
 use crate::gui::theme::Theme;
 
@@ -11,6 +14,7 @@ pub struct LogState {
     pub auto_scroll: bool,
     max_entries: usize,
     pub copy_status: String,
+    pub show_clear_popup: bool,
 }
 
 impl Default for LogState {
@@ -28,6 +32,7 @@ impl LogState {
             auto_scroll: true,
             max_entries: 10_000,
             copy_status: String::new(),
+            show_clear_popup: false,
         }
     }
 
@@ -76,7 +81,14 @@ fn filtered_text(entries: &[LogEntry], filter_level: tracing::Level, filter_text
         .join("\n")
 }
 
-pub fn draw(ui: &mut Ui, log_state: &mut LogState, buffer: &LogBuffer, theme: &Theme, i18n: &I18n) {
+pub fn draw(
+    ui: &mut Ui,
+    log_state: &mut LogState,
+    buffer: &LogBuffer,
+    theme: &Theme,
+    state: &Arc<AppState>,
+    i18n: &I18n,
+) {
     log_state.update(buffer);
 
     ui.horizontal(|ui| {
@@ -99,8 +111,7 @@ pub fn draw(ui: &mut Ui, log_state: &mut LogState, buffer: &LogBuffer, theme: &T
         ui.checkbox(&mut log_state.auto_scroll, i18n.t("auto_scroll"));
 
         if ui.button(i18n.t("clear")).clicked() {
-            log_state.entries.clear();
-            log_state.copy_status.clear();
+            log_state.show_clear_popup = true;
         }
 
         if ui.button(i18n.t("copy_all")).clicked() {
@@ -138,6 +149,37 @@ pub fn draw(ui: &mut Ui, log_state: &mut LogState, buffer: &LogBuffer, theme: &T
             ui.label(&log_state.copy_status);
         }
     });
+
+    // Clear confirmation popup
+    if log_state.show_clear_popup {
+        egui::Window::new(i18n.t("clear"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ui.ctx(), |ui| {
+                ui.label("Clear log?");
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("GUI only").clicked() {
+                        log_state.entries.clear();
+                        log_state.copy_status.clear();
+                        log_state.show_clear_popup = false;
+                    }
+                    if ui.button("GUI + File").clicked() {
+                        log_state.entries.clear();
+                        log_state.copy_status.clear();
+                        let config = state.config();
+                        if !config.server.log_file.is_empty() {
+                            let _ = std::fs::write(&config.server.log_file, "");
+                        }
+                        log_state.show_clear_popup = false;
+                    }
+                    if ui.button(i18n.t("close")).clicked() {
+                        log_state.show_clear_popup = false;
+                    }
+                });
+            });
+    }
 
     ui.separator();
 

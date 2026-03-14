@@ -40,6 +40,8 @@ pub struct TftpApp {
     /// Tokio runtime handle for spawning server restart tasks
     rt_handle: tokio::runtime::Handle,
 
+    cached_sessions: Vec<SessionInfo>,
+    cached_history: Vec<TransferRecord>,
     dashboard: DashboardState,
     files: FilesState,
     transfers: TransfersState,
@@ -69,6 +71,8 @@ impl TftpApp {
             show_about: false,
             i18n: I18n::new(Lang::parse(&config.gui.language)),
             rt_handle: tokio::runtime::Handle::current(),
+            cached_sessions: Vec::new(),
+            cached_history: Vec::new(),
             dashboard: DashboardState::new(),
             files: FilesState::new(root),
             transfers: TransfersState::new(),
@@ -130,20 +134,16 @@ impl eframe::App for TftpApp {
 
         // Close window = quit app (shutdown server and exit)
 
-        // Collect state snapshots outside of UI rendering
+        // Collect state snapshots — use cache if lock is busy to prevent flickering
         let server_state = self.state.get_server_state();
-        let active_sessions: Vec<SessionInfo> = self
-            .state
-            .active_sessions
-            .try_read()
-            .map(|s| s.values().cloned().collect())
-            .unwrap_or_default();
-        let transfer_history: Vec<TransferRecord> = self
-            .state
-            .transfer_history
-            .try_read()
-            .map(|h| h.clone())
-            .unwrap_or_default();
+        if let Ok(s) = self.state.active_sessions.try_read() {
+            self.cached_sessions = s.values().cloned().collect();
+        }
+        if let Ok(h) = self.state.transfer_history.try_read() {
+            self.cached_history = h.clone();
+        }
+        let active_sessions = &self.cached_sessions;
+        let transfer_history = &self.cached_history;
 
         // Top panel
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -404,7 +404,7 @@ impl eframe::App for TftpApp {
                     &self.state,
                     &mut self.dashboard,
                     &self.theme,
-                    &active_sessions,
+                    active_sessions,
                     &self.i18n,
                 );
             }
@@ -412,7 +412,13 @@ impl eframe::App for TftpApp {
                 tabs::files::draw(ui, &self.state, &mut self.files, &self.i18n);
             }
             Tab::Transfers => {
-                tabs::transfers::draw(ui, &transfer_history, &mut self.transfers, &self.i18n);
+                tabs::transfers::draw(
+                    ui,
+                    transfer_history,
+                    &mut self.transfers,
+                    &self.state,
+                    &self.i18n,
+                );
             }
             Tab::Log => {
                 tabs::log_tab::draw(
@@ -420,6 +426,7 @@ impl eframe::App for TftpApp {
                     &mut self.log_state,
                     &self.log_buffer,
                     &self.theme,
+                    &self.state,
                     &self.i18n,
                 );
             }

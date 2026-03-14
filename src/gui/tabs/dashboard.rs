@@ -180,58 +180,113 @@ pub fn draw(
     if active_sessions.is_empty() {
         ui.label(i18n.t("no_active_transfers"));
     } else {
-        egui::ScrollArea::horizontal().show(ui, |ui| {
-            egui::Grid::new("active_transfers")
-                .striped(true)
-                .min_col_width(60.0)
-                .show(ui, |ui| {
-                    ui.strong(i18n.t("client"));
-                    ui.strong(i18n.t("file"));
-                    ui.strong(i18n.t("direction"));
-                    ui.strong(i18n.t("progress"));
-                    ui.strong(i18n.t("speed"));
-                    ui.strong(i18n.t("duration"));
-                    ui.strong(i18n.t("blksize"));
-                    ui.strong(i18n.t("window"));
-                    ui.end_row();
+        let w = ui.available_width();
+        let cw = [
+            w * 0.18,
+            w * 0.20,
+            w * 0.07,
+            w * 0.20,
+            w * 0.10,
+            w * 0.08,
+            w * 0.08,
+            w * 0.09,
+        ];
+        let h = 20.0;
 
-                    for session in active_sessions {
-                        ui.label(session.client_addr.to_string());
-                        ui.label(&session.filename);
-                        ui.label(match session.direction {
+        egui::Grid::new("active_transfers_grid")
+            .num_columns(8)
+            .striped(true)
+            .spacing([0.0, 4.0])
+            .show(ui, |ui| {
+                // Header
+                ui.add_sized(
+                    [cw[0], h],
+                    egui::Label::new(egui::RichText::new(i18n.t("client")).strong()),
+                );
+                ui.add_sized(
+                    [cw[1], h],
+                    egui::Label::new(egui::RichText::new(i18n.t("file")).strong()),
+                );
+                ui.add_sized(
+                    [cw[2], h],
+                    egui::Label::new(egui::RichText::new(i18n.t("direction")).strong()),
+                );
+                ui.add_sized(
+                    [cw[3], h],
+                    egui::Label::new(egui::RichText::new(i18n.t("progress")).strong()),
+                );
+                ui.add_sized(
+                    [cw[4], h],
+                    egui::Label::new(egui::RichText::new(i18n.t("speed")).strong()),
+                );
+                ui.add_sized(
+                    [cw[5], h],
+                    egui::Label::new(egui::RichText::new(i18n.t("duration")).strong()),
+                );
+                ui.add_sized(
+                    [cw[6], h],
+                    egui::Label::new(egui::RichText::new(i18n.t("blksize")).strong()),
+                );
+                ui.add_sized(
+                    [cw[7], h],
+                    egui::Label::new(egui::RichText::new(i18n.t("window")).strong()),
+                );
+                ui.end_row();
+
+                for session in active_sessions {
+                    ui.add_sized(
+                        [cw[0], h],
+                        egui::Label::new(session.client_addr.to_string()),
+                    );
+                    ui.add_sized([cw[1], h], egui::Label::new(&session.filename));
+                    ui.add_sized(
+                        [cw[2], h],
+                        egui::Label::new(match session.direction {
                             Direction::Read => i18n.t("download"),
                             Direction::Write => i18n.t("upload"),
-                        });
+                        }),
+                    );
 
-                        if let Some(tsize) = session.tsize {
-                            if tsize > 0 {
-                                let progress = session.bytes_transferred as f32 / tsize as f32;
-                                ui.add(egui::ProgressBar::new(progress).text(format!(
+                    if let Some(tsize) = session.tsize {
+                        if tsize > 0 {
+                            let progress = session.bytes_transferred as f32 / tsize as f32;
+                            ui.add_sized(
+                                [cw[3], h],
+                                egui::ProgressBar::new(progress).text(format!(
                                     "{} / {}",
                                     format_bytes(session.bytes_transferred),
                                     format_bytes(tsize)
-                                )));
-                            } else {
-                                ui.label(format_bytes(session.bytes_transferred));
-                            }
+                                )),
+                            );
                         } else {
-                            ui.label(format_bytes(session.bytes_transferred));
+                            ui.add_sized(
+                                [cw[3], h],
+                                egui::Label::new(format_bytes(session.bytes_transferred)),
+                            );
                         }
-
-                        let elapsed = session.started_at.elapsed().as_secs_f64();
-                        let speed = if elapsed > 0.0 {
-                            session.bytes_transferred as f64 / elapsed
-                        } else {
-                            0.0
-                        };
-                        ui.label(format_bytes_rate(speed));
-                        ui.label(format_duration(session.started_at.elapsed()));
-                        ui.label(session.blksize.to_string());
-                        ui.label(session.windowsize.to_string());
-                        ui.end_row();
+                    } else {
+                        ui.add_sized(
+                            [cw[3], h],
+                            egui::Label::new(format_bytes(session.bytes_transferred)),
+                        );
                     }
-                });
-        });
+
+                    let elapsed = session.started_at.elapsed().as_secs_f64();
+                    let speed = if elapsed > 0.0 {
+                        session.bytes_transferred as f64 / elapsed
+                    } else {
+                        0.0
+                    };
+                    ui.add_sized([cw[4], h], egui::Label::new(format_bytes_rate(speed)));
+                    ui.add_sized(
+                        [cw[5], h],
+                        egui::Label::new(format_duration(session.started_at.elapsed())),
+                    );
+                    ui.add_sized([cw[6], h], egui::Label::new(session.blksize.to_string()));
+                    ui.add_sized([cw[7], h], egui::Label::new(session.windowsize.to_string()));
+                    ui.end_row();
+                }
+            });
     }
 
     // Bandwidth graph (configurable)

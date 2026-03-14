@@ -157,6 +157,7 @@ fn main() -> anyhow::Result<()> {
         {
             let log_buffer = init_logging_with_buffer(&config, true);
             let state = AppState::new(config, cli_overrides.clone());
+            state.load_transfer_history();
             runtime.block_on(fry_tftp_server::gui::run(state, log_buffer))?;
         }
         #[cfg(not(feature = "gui"))]
@@ -168,6 +169,7 @@ fn main() -> anyhow::Result<()> {
         {
             let log_buffer = init_logging_with_buffer(&config, false);
             let state = AppState::new(config, cli_overrides.clone());
+            state.load_transfer_history();
             runtime.block_on(fry_tftp_server::tui::run(state, log_buffer))?;
         }
         #[cfg(not(feature = "tui"))]
@@ -177,6 +179,7 @@ fn main() -> anyhow::Result<()> {
     } else {
         init_logging(&config);
         let state = AppState::new(config, cli_overrides);
+        state.load_transfer_history();
         runtime.block_on(fry_tftp_server::headless::run(state))?;
     }
 

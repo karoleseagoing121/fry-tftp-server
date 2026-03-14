@@ -12,6 +12,7 @@ pub struct ConfigState {
     pub ip_version: String,
     pub log_level: String,
     pub max_log_lines: String,
+    pub transfer_log: String,
 
     pub allow_write: bool,
     pub default_blksize: String,
@@ -50,6 +51,7 @@ impl ConfigState {
             ip_version: config.network.ip_version.clone(),
             log_level: config.server.log_level.clone(),
             max_log_lines: config.server.max_log_lines.to_string(),
+            transfer_log: config.server.transfer_log.clone(),
 
             allow_write: config.protocol.allow_write,
             default_blksize: config.protocol.default_blksize.to_string(),
@@ -90,6 +92,8 @@ impl ConfigState {
             .max_log_lines
             .parse()
             .map_err(|_| "Invalid max log lines")?;
+
+        config.server.transfer_log = self.transfer_log.clone();
 
         config.protocol.allow_write = self.allow_write;
         config.protocol.default_blksize = self
@@ -248,6 +252,12 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, cs: &mut ConfigState, i18n: &I18
                     }
                     ui.weak(i18n.t("unlimited"));
                 });
+                ui.end_row();
+
+                ui.label(i18n.t("transfer_log"));
+                if ui.text_edit_singleline(&mut cs.transfer_log).changed() {
+                    cs.dirty = true;
+                }
                 ui.end_row();
             });
         });
