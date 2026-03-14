@@ -360,7 +360,7 @@ pub fn draw(ui: &mut Ui, state: &Arc<AppState>, acl: &mut AclState, i18n: &I18n)
                         ui.painter().rect_filled(
                             row_rect,
                             0.0,
-                            egui::Color32::from_rgba_premultiplied(255, 255, 255, 6),
+                            egui::Color32::from_rgba_unmultiplied(255, 255, 255, 10),
                         );
                     }
 
