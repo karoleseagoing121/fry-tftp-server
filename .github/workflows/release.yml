@@ -50,7 +50,7 @@ jobs:
             name: macos-arm64
 
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-latest
             features: "--all-features"
             archive: tar.gz
             name: macos-x86_64
