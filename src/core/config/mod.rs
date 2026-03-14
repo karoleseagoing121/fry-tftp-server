@@ -58,6 +58,30 @@ pub struct GuiConfig {
     pub language: String,
 }
 
+/// Detect system language from OS locale. Returns language code if supported, "en" otherwise.
+/// Checks LANG/LC_ALL env vars (Linux/macOS) and Win32 API locale (Windows).
+fn detect_system_language() -> String {
+    let locale = std::env::var("LANG")
+        .or_else(|_| std::env::var("LC_ALL"))
+        .or_else(|_| std::env::var("LC_MESSAGES"))
+        .unwrap_or_default()
+        .to_lowercase();
+
+    // locale is typically "en_US.UTF-8", "ru_RU.UTF-8", "de_DE.UTF-8" etc.
+    let code = if locale.starts_with("ru") {
+        "ru"
+    } else if locale.starts_with("de") {
+        "de"
+    } else if locale.starts_with("es") {
+        "es"
+    } else if locale.starts_with("fr") {
+        "fr"
+    } else {
+        "en"
+    };
+    code.to_string()
+}
+
 impl Default for GuiConfig {
     fn default() -> Self {
         Self {
@@ -65,7 +89,7 @@ impl Default for GuiConfig {
             refresh_rate_ms: 250,
             graph_history_seconds: 300,
             show_bandwidth_chart: false,
-            language: "en".to_string(),
+            language: detect_system_language(),
         }
     }
 }
