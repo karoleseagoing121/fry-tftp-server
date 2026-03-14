@@ -37,6 +37,7 @@ pub async fn run(
             .with_inner_size([1000.0, 600.0])
             .with_min_inner_size([800.0, 500.0])
             .with_icon(std::sync::Arc::new(egui::IconData::default())),
+        centered: true,
         ..Default::default()
     };
 
