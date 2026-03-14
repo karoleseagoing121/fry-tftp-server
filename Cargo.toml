@@ -81,6 +81,7 @@ windows-sys = { version = "0.59", features = [
 tokio-test = "0.4"
 tempfile = "3"
 proptest = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
 default = ["gui", "tui"]
@@ -90,4 +91,16 @@ tui = ["dep:ratatui", "dep:crossterm"]
 [[bin]]
 name = "fry-tftp-server"
 path = "src/main.rs"
+
+[[test]]
+name = "integration"
+path = "tests/integration/basic_rrq.rs"
+
+[[bench]]
+name = "packet_bench"
+harness = false
+
+[[bench]]
+name = "throughput_bench"
+harness = false
 
