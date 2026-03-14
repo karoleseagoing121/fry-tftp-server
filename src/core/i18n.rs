@@ -11,6 +11,7 @@ pub enum Lang {
     Ru,
     De,
     Es,
+    Fr,
 }
 
 impl Lang {
@@ -19,6 +20,7 @@ impl Lang {
             "ru" | "russian" => Lang::Ru,
             "de" | "german" | "deutsch" => Lang::De,
             "es" | "spanish" | "español" => Lang::Es,
+            "fr" | "french" | "français" => Lang::Fr,
             _ => Lang::En,
         }
     }
@@ -29,6 +31,7 @@ impl Lang {
             Lang::Ru => "ru",
             Lang::De => "de",
             Lang::Es => "es",
+            Lang::Fr => "fr",
         }
     }
 
@@ -38,10 +41,11 @@ impl Lang {
             Lang::Ru => "Русский",
             Lang::De => "Deutsch",
             Lang::Es => "Español",
+            Lang::Fr => "Français",
         }
     }
 
-    pub const ALL: &'static [Lang] = &[Lang::En, Lang::Ru, Lang::De, Lang::Es];
+    pub const ALL: &'static [Lang] = &[Lang::En, Lang::Ru, Lang::De, Lang::Es, Lang::Fr];
 }
 
 pub struct I18n {
@@ -56,6 +60,7 @@ impl I18n {
             Lang::Ru => ru(),
             Lang::De => de(),
             Lang::Es => es(),
+            Lang::Fr => fr(),
         };
         Self { lang, strings }
     }
@@ -774,6 +779,171 @@ fn es() -> HashMap<&'static str, &'static str> {
     m.insert("source", "Código fuente:");
     m.insert("license", "Licencia:");
     m.insert("built_with", "Creado con Rust, egui, tokio, ratatui");
+
+    m
+}
+
+fn fr() -> HashMap<&'static str, &'static str> {
+    let mut m = HashMap::new();
+
+    m.insert("status", "Statut :");
+    m.insert("listening", "Écoute :");
+    m.insert("running", "En cours");
+    m.insert("starting", "Démarrage...");
+    m.insert("stopping", "Arrêt...");
+    m.insert("stopped", "Arrêté");
+    m.insert("error", "Erreur");
+    m.insert("start_server", "Démarrer");
+    m.insert("stop_server", "Arrêter");
+    m.insert("light_mode", "Thème clair");
+    m.insert("dark_mode", "Thème sombre");
+    m.insert("about", "À propos");
+    m.insert("close", "Fermer");
+
+    m.insert("tab_dashboard", "Tableau de bord");
+    m.insert("tab_files", "Fichiers");
+    m.insert("tab_transfers", "Transferts");
+    m.insert("tab_log", "Journal");
+    m.insert("tab_config", "Configuration");
+    m.insert("tab_acl", "ACL");
+    m.insert("tab_help", "Aide");
+
+    m.insert("sessions", "Sessions");
+    m.insert("total", "Total");
+    m.insert("errors", "Erreurs");
+
+    m.insert("active_sessions", "Sessions actives");
+    m.insert("tx_rate", "Débit TX");
+    m.insert("rx_rate", "Débit RX");
+    m.insert("active_transfers", "Transferts actifs");
+    m.insert("no_active_transfers", "Aucun transfert actif");
+    m.insert("client", "Client");
+    m.insert("file", "Fichier");
+    m.insert("direction", "Dir.");
+    m.insert("progress", "Progression");
+    m.insert("speed", "Vitesse");
+    m.insert("duration", "Durée");
+    m.insert("blksize", "Bloc");
+    m.insert("window", "Fenêtre");
+    m.insert("download", "Téléchargement");
+    m.insert("upload", "Envoi");
+    m.insert("bandwidth", "Bande passante");
+    m.insert("tx_mbps", "TX (Mo/s)");
+    m.insert("rx_mbps", "RX (Mo/s)");
+
+    m.insert("refresh", "Actualiser");
+    m.insert("change_root", "Changer de dossier...");
+    m.insert("up", "Haut");
+    m.insert("name", "Nom");
+    m.insert("size", "Taille");
+    m.insert("type", "Type");
+    m.insert("directory", "Dossier");
+
+    m.insert("transfer_history", "Historique des transferts");
+    m.insert("export_csv", "Exporter CSV");
+    m.insert("export_json", "Exporter JSON");
+    m.insert("status_label", "Statut :");
+    m.insert("all", "Tous");
+    m.insert("completed", "Terminé");
+    m.insert("failed", "Échoué");
+    m.insert("cancelled", "Annulé");
+    m.insert("retransmits", "Retransmissions");
+    m.insert("ok", "OK");
+    m.insert("fail", "ÉCHEC");
+
+    m.insert("level", "Niveau :");
+    m.insert("filter", "Filtre :");
+    m.insert("auto_scroll", "Défilement auto");
+    m.insert("clear", "Effacer");
+    m.insert("copy_all", "Tout copier");
+    m.insert("export", "Exporter");
+
+    m.insert("configuration", "Configuration");
+    m.insert("server", "Serveur");
+    m.insert(
+        "port_restart_note",
+        "* Le port, l'adresse et la version IP nécessitent un redémarrage",
+    );
+    m.insert("port", "Port * :");
+    m.insert("bind_address", "Adresse * :");
+    m.insert("root_directory", "Répertoire racine :");
+    m.insert("browse", "Parcourir...");
+    m.insert("ip_version", "Version IP * :");
+    m.insert("dual_stack", "Double pile");
+    m.insert("ipv4_only", "IPv4 uniquement");
+    m.insert("ipv6_only", "IPv6 uniquement");
+    m.insert("log_level", "Niveau du journal :");
+    m.insert("max_log_lines", "Max. lignes de journal :");
+    m.insert("unlimited", "0 = illimité");
+    m.insert("protocol", "Protocole");
+    m.insert("allow_write", "Autoriser l'écriture :");
+    m.insert("default_blksize", "Bloc par défaut :");
+    m.insert("max_blksize", "Bloc maximum :");
+    m.insert("default_windowsize", "Fenêtre par défaut :");
+    m.insert("max_windowsize", "Fenêtre maximum :");
+    m.insert("default_timeout", "Timeout par défaut :");
+    m.insert("session", "Session");
+    m.insert("max_sessions", "Max. sessions :");
+    m.insert("max_retries", "Max. tentatives :");
+    m.insert("session_timeout", "Timeout session (s) :");
+    m.insert("exponential_backoff", "Recul exponentiel :");
+    m.insert("security", "Sécurité");
+    m.insert("per_ip_max_sessions", "Sessions par IP :");
+    m.insert("per_ip_rate_limit", "Limite par IP :");
+    m.insert("rate_limit_window", "Fenêtre limite (s) :");
+    m.insert("dashboard_section", "Tableau de bord");
+    m.insert("show_bandwidth_chart", "Afficher le graphique :");
+    m.insert("filesystem", "Système de fichiers");
+    m.insert("max_file_size", "Taille max. fichier :");
+    m.insert("allow_overwrite", "Autoriser l'écrasement :");
+    m.insert("create_directories", "Créer les dossiers :");
+    m.insert("follow_symlinks", "Suivre les liens :");
+    m.insert("apply", "Appliquer");
+    m.insert(
+        "restart_note",
+        " (Port/Adresse/IP nécessitent un redémarrage)",
+    );
+    m.insert("reset_current", "Réinitialiser à l'actuel");
+    m.insert("reset_defaults", "Valeurs par défaut");
+    m.insert("import_toml", "Importer TOML...");
+    m.insert("export_toml", "Exporter TOML...");
+    m.insert("language", "Langue");
+    m.insert("language_label", "Langue de l'interface :");
+
+    m.insert("access_control_list", "Liste de contrôle d'accès");
+    m.insert("mode", "Mode :");
+    m.insert("disabled", "Désactivé");
+    m.insert("whitelist", "Liste blanche");
+    m.insert("blacklist", "Liste noire");
+    m.insert("no_acl_rules", "Aucune règle ACL configurée");
+    m.insert("acl_recommendation", "Il est recommandé d'ajouter des règles ACL si le serveur est exposé au réseau. Utilisez la liste blanche pour les IPs de confiance ou la liste noire pour bloquer.");
+    m.insert("action", "Action");
+    m.insert("source_cidr", "Source (CIDR)");
+    m.insert("operations", "Opérations");
+    m.insert("comment", "Commentaire");
+    m.insert("allow", "Autoriser");
+    m.insert("deny", "Refuser");
+    m.insert("add_rule", "Ajouter une règle");
+    m.insert("add", "Ajouter :");
+    m.insert("invalid_cidr", "Format CIDR invalide");
+    m.insert("reset", "Réinitialiser");
+
+    m.insert("help_title", "Fry TFTP Server");
+    m.insert(
+        "help_subtitle",
+        "Serveur TFTP multiplateforme haute performance",
+    );
+    m.insert("supported_rfcs", "RFCs pris en charge");
+    m.insert("features", "Fonctionnalités");
+
+    m.insert("about_title", "Fry TFTP Server");
+    m.insert("version", "Version :");
+    m.insert("author", "Auteur :");
+    m.insert("author_name", "Viacheslav Gordeev");
+    m.insert("email", "E-mail :");
+    m.insert("source", "Code source :");
+    m.insert("license", "Licence :");
+    m.insert("built_with", "Créé avec Rust, egui, tokio, ratatui");
 
     m
 }
